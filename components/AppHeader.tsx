@@ -19,9 +19,11 @@ interface Props {
   history: HistoryEntry[];
   onHistorySelect: (h: HistoryEntry) => void;
   onExport: (() => void) | null;
+  activeTable?: string;
+  rowCount?: number;
 }
 
-export default function AppHeader({ mode, setMode, history, onHistorySelect, onExport }: Props) {
+export default function AppHeader({ mode, setMode, history, onHistorySelect, onExport, activeTable, rowCount }: Props) {
   const [shareCopied, setShareCopied] = useState(false);
   const [showHist, setShowHist] = useState(false);
   const histRef = useRef<HTMLDivElement>(null);
@@ -70,6 +72,15 @@ export default function AppHeader({ mode, setMode, history, onHistorySelect, onE
             );
           })}
         </nav>
+
+        {/* Active data indicator */}
+        {activeTable && (
+          <div className="ml-2 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-accent-dim border border-accent/20 max-w-[200px]">
+            <Database size={10} className="text-accent flex-shrink-0" />
+            <span className="text-[10px] text-accent font-mono truncate">{activeTable}</span>
+            {rowCount != null && <span className="text-[9px] text-accent/60 flex-shrink-0">{rowCount.toLocaleString()}</span>}
+          </div>
+        )}
 
         {/* Right actions */}
         <div className="ml-auto flex gap-1.5 items-center">

@@ -6,6 +6,8 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Play, RefreshCw, Download, Database, BookOpen, Terminal } from 'lucide-react';
+import TableSearch from '@/components/TableSearch';
+import type { TableEntry } from '@/lib/types';
 
 const PY_EXAMPLES = [
   {
@@ -186,15 +188,17 @@ function log(msg, cls='') {
 
 async function init() {
   try {
-    importScripts ? 0 : 0;
     const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js';
+    script.src = 'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js';
+    script.onerror = () => { log('Pyodide татахад алдаа — интернет шалгана уу', 'err'); parent.postMessage({type:'status',status:'error',msg:'Pyodide load failed'},'*'); };
     script.onload = async () => {
-      pyodide = await loadPyodide();
-      await pyodide.loadPackage(['numpy','pandas','matplotlib']);
-      document.getElementById('out').innerHTML = '';
-      log('Python бэлэн! (pandas, matplotlib, numpy)', 'ok');
-      parent.postMessage({ type:'status', status:'ready', msg:'Python бэлэн' }, '*');
+      try {
+        pyodide = await loadPyodide();
+        await pyodide.loadPackage(['numpy','pandas','matplotlib']);
+        document.getElementById('out').innerHTML = '';
+        log('Python бэлэн! (pandas, matplotlib, numpy)', 'ok');
+        parent.postMessage({ type:'status', status:'ready', msg:'Python бэлэн' }, '*');
+      } catch(e) { log('Package ачаалахад алдаа: '+e.message, 'err'); parent.postMessage({type:'status',status:'error',msg:e.message},'*'); }
     };
     document.head.appendChild(script);
   } catch(e) { log('Алдаа: '+e.message, 'err'); parent.postMessage({type:'status',status:'error',msg:e.message},'*'); }
@@ -254,13 +258,17 @@ init();
 <\/script>
 </body></html>`;
 
-export default function RMode() {
+interface RModeProps {
+  initialData?: { rows: Record<string, unknown>[]; tableName?: string };
+}
+
+export default function RMode({ initialData }: RModeProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'running' | 'error'>('loading');
   const [statusMsg, setStatusMsg] = useState('Pyodide ачааллаж байна...');
   const [code, setCode] = useState(PY_EXAMPLES[0].code);
-  const [rows, setRows] = useState<Record<string, unknown>[]>([]);
-  const [tblPath, setTblPath] = useState('');
+  const [rows, setRows] = useState<Record<string, unknown>[]>(initialData?.rows ?? []);
+  const [tableName, setTableName] = useState(initialData?.tableName ?? '');
   const [dataLoading, setDataLoading] = useState(false);
 
   useEffect(() => {
@@ -290,11 +298,12 @@ export default function RMode() {
     iframeRef.current?.contentWindow?.postMessage({ type: 'run', code, data: rows }, '*');
   }, [code, rows, status]);
 
-  const loadData = async () => {
-    if (!tblPath.trim()) return;
+  const loadData = async (entry?: TableEntry) => {
+    const path = entry ? (entry.path.endsWith('.px') ? entry.path : entry.path + '.px') : '';
+    if (!path) return;
     setDataLoading(true);
+    setTableName(entry?.text ?? entry?.id ?? '');
     try {
-      const path = tblPath.trim().endsWith('.px') ? tblPath.trim() : tblPath.trim() + '.px';
       const res = await fetch('/api/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -375,33 +384,29 @@ export default function RMode() {
             <Database size={12} className="text-accent" />
             <span className="label-upper text-accent">Өгөгдөл ачаалах</span>
           </div>
-          <input
-            value={tblPath}
-            onChange={e => setTblPath(e.target.value)}
-            placeholder="жш: population, gdp..."
-            className="input-search !text-xs font-mono mb-2"
-          />
-          <div className="flex gap-1.5">
-            <button onClick={loadData} disabled={dataLoading || !tblPath.trim()} className="btn-primary flex-1 !text-xs !py-2 justify-center">
-              {dataLoading ? 'Татаж байна...' : 'Татах'}
-            </button>
-            {rows.length > 0 && (
-              <button onClick={() => {
-                const cols = Object.keys(rows[0]);
-                const csv = [cols.join(','), ...rows.map(r => cols.map(c => `"${r[c] ?? ''}"`).join(','))].join('\n');
-                const a = document.createElement('a');
-                a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-                a.download = 'data.csv'; a.click();
-              }} className="btn-ghost !py-2">
-                <Download size={12} />
-              </button>
-            )}
-          </div>
+          <TableSearch onSelect={(t) => loadData(t)} placeholder="Хүснэгт хайх..." compact />
+          {dataLoading && (
+            <div className="mt-2 flex items-center gap-2 text-xs text-ink-400">
+              <RefreshCw size={12} className="spin text-accent" /> Татаж байна...
+            </div>
+          )}
           {rows.length > 0 && (
             <div className="mt-2 p-2.5 bg-accent-dim rounded-lg border border-accent/20">
-              <span className="text-[11px] text-accent font-mono font-bold">
-                df: {rows.length.toLocaleString()} мөр · {Object.keys(rows[0] ?? {}).length} багана
-              </span>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] text-accent font-mono font-bold">
+                  df: {rows.length.toLocaleString()} мөр · {Object.keys(rows[0] ?? {}).length} багана
+                </span>
+                <button onClick={() => {
+                  const cols = Object.keys(rows[0]);
+                  const csv = [cols.join(','), ...rows.map(r => cols.map(c => `"${r[c] ?? ''}"`).join(','))].join('\n');
+                  const a = document.createElement('a');
+                  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+                  a.download = 'data.csv'; a.click();
+                }} className="btn-ghost !py-0.5 !px-1.5 !text-[10px]">
+                  <Download size={10} />
+                </button>
+              </div>
+              {tableName && <div className="text-[10px] text-accent/70 mt-0.5 truncate">{tableName}</div>}
               <div className="text-[10px] text-ink-600 mt-1 font-mono leading-relaxed truncate">
                 {Object.keys(rows[0] ?? {}).join(', ')}
               </div>

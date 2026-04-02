@@ -41,6 +41,8 @@ function AppInner() {
         history={engine.history}
         onHistorySelect={(h) => { engine.setSql(h.sql); setMode('sql'); }}
         onExport={engine.result ? engine.exportCSV : null}
+        activeTable={engine.result?.explain?.table}
+        rowCount={engine.result?.count}
       />
 
       <main className="max-w-[1300px] mx-auto p-5">
@@ -61,7 +63,9 @@ function AppInner() {
           }} />
         )}
 
-        {mode === 'r' && <RMode />}
+        {mode === 'r' && (
+          <RMode initialData={engine.result ? { rows: engine.result.rows as Record<string, unknown>[], tableName: engine.result.explain?.table } : undefined} />
+        )}
 
         {mode === 'sql' && (
           <SQLMode
