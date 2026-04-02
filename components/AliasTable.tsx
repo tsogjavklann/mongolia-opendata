@@ -7,14 +7,14 @@ import { loadAliases } from '@/lib/tableAliases';
 interface Props { onInsert: (alias: string) => void; }
 
 const CAT_COLOR: Record<string, string> = {
-  'Хүн ам, өрх':                    '#60a5fa',
-  'Эдийн засаг, байгаль орчин':      '#00c87a',
-  'Хөдөлмөр, бизнес':               '#f87171',
+  'Хүн ам, өрх':                    '#5b9cf6',
+  'Эдийн засаг, байгаль орчин':      '#00d68f',
+  'Хөдөлмөр, бизнес':               '#f05252',
   'Боловсрол, эрүүл мэнд':          '#c084fc',
-  'Үйлдвэрлэл, үйлчилгээ':          '#fbbf24',
+  'Үйлдвэрлэл, үйлчилгээ':          '#f0b040',
   'Нийгэм, хөгжил':                  '#34d399',
   'Бүсчилсэн хөгжлийн үзүүлэлтүүд': '#fb923c',
-  'Түүхэн Статистик':                '#94a3b8',
+  'Түүхэн Статистик':                '#8898b0',
 };
 
 export default function AliasTable({ onInsert }: Props) {
@@ -34,56 +34,62 @@ export default function AliasTable({ onInsert }: Props) {
 
   const categories = useMemo(() => [...new Set(aliases.map(a => a.category))], [aliases]);
   const byCategory = (cat: string) => aliases.filter(a => a.category === cat);
-
   const handleCopy = (alias: string) => { onInsert(alias); setCopied(alias); setTimeout(() => setCopied(null), 1200); };
 
   const ItemRow = ({ a }: { a: TableAlias }) => {
-    const color = CAT_COLOR[a.category] ?? '#94a3b8';
+    const color = CAT_COLOR[a.category] ?? '#8898b0';
     return (
       <button onClick={() => handleCopy(a.alias)} title={a.label + '\n' + a.path}
-        style={{ display:'flex', alignItems:'flex-start', gap:7, padding:'5px 7px', borderRadius:5, border:'1px solid #1a3050', background:'#0a1428', cursor:'pointer', textAlign:'left', transition:'all 0.12s', width:'100%' }}
-        onMouseEnter={e => { e.currentTarget.style.borderColor=color; e.currentTarget.style.background=color+'10'; }}
-        onMouseLeave={e => { e.currentTarget.style.borderColor='#1a3050'; e.currentTarget.style.background='#0a1428'; }}>
-        <code style={{ fontFamily:'JetBrains Mono,monospace', fontSize:10, fontWeight:700, color, background:color+'15', padding:'1px 5px', borderRadius:3, border:`1px solid ${color}30`, flexShrink:0, lineHeight:1.6 }}>{a.alias}</code>
-        <span style={{ fontSize:10.5, color:'#94a3b8', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', lineHeight:1.4 }}>{a.label}</span>
-        <span style={{ color: copied===a.alias ? '#00c87a' : '#334155', flexShrink:0 }}>{copied===a.alias ? <Check size={10}/> : <Copy size={10}/>}</span>
+        className="flex items-start gap-2 px-2 py-1.5 rounded-lg w-full text-left cursor-pointer transition-all duration-150 border border-border/40 bg-surface-dark hover:border-accent/30 hover:bg-accent-dim">
+        <code className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border flex-shrink-0 leading-relaxed"
+          style={{ color, background: color + '12', borderColor: color + '25' }}>
+          {a.alias}
+        </code>
+        <span className="text-[10.5px] text-ink-400 flex-1 overflow-hidden text-ellipsis whitespace-nowrap leading-snug">{a.label}</span>
+        <span className={`flex-shrink-0 ${copied === a.alias ? 'text-accent' : 'text-ink-700'}`}>
+          {copied === a.alias ? <Check size={10} /> : <Copy size={10} />}
+        </span>
       </button>
     );
   };
 
-  if (loading) return <div style={{fontSize:11,color:'#334155',textAlign:'center',padding:'16px 0'}}>aliases.json ачааллаж байна... ({1282} хүснэгт)</div>;
+  if (loading) return (
+    <div className="flex flex-col gap-2 py-4">
+      {[1, 2, 3].map(i => <div key={i} className="skeleton h-8 rounded-lg" />)}
+    </div>
+  );
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-      <div style={{ fontSize:10, fontWeight:700, color:'#475569', letterSpacing:'0.07em', textTransform:'uppercase' }}>{aliases.length} хүснэгтийн alias</div>
-      <div style={{ position:'relative' }}>
-        <Search size={11} style={{ position:'absolute', left:8, top:'50%', transform:'translateY(-50%)', color:'#334155', pointerEvents:'none' }}/>
-        <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Хайх... (alias, монгол нэр)"
-          style={{ width:'100%', padding:'5px 8px 5px 24px', background:'#060c18', border:'1px solid #1a3050', borderRadius:6, color:'#e2e8f0', fontSize:11, outline:'none', fontFamily:'inherit' }}
-          onFocus={e=>e.currentTarget.style.borderColor='#00c87a'} onBlur={e=>e.currentTarget.style.borderColor='#1a3050'}/>
+    <div className="flex flex-col gap-2">
+      <div className="label-upper">{aliases.length} alias</div>
+      <div className="relative">
+        <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-600 pointer-events-none" />
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Хайх..."
+          className="input-search !text-[11px] !py-1.5 !pl-7"
+        />
       </div>
       {filtered ? (
-        <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
-          <div style={{ fontSize:10, color:'#334155' }}>{filtered.length} үр дүн</div>
-          {filtered.map(a => <ItemRow key={a.alias} a={a}/>)}
-          {!filtered.length && <div style={{fontSize:11,color:'#334155',textAlign:'center',padding:'10px 0'}}>Олдсонгүй</div>}
+        <div className="flex flex-col gap-1">
+          <div className="text-[10px] text-ink-600">{filtered.length} үр дүн</div>
+          {filtered.map(a => <ItemRow key={a.alias} a={a} />)}
+          {!filtered.length && <div className="text-[11px] text-ink-600 text-center py-3">Олдсонгүй</div>}
         </div>
       ) : categories.map(cat => {
         const items = byCategory(cat);
-        const color = CAT_COLOR[cat] ?? '#94a3b8';
+        const color = CAT_COLOR[cat] ?? '#8898b0';
         const isOpen = !collapsed[cat];
         return (
           <div key={cat}>
-            <button onClick={() => setCollapsed(p=>({...p,[cat]:!p[cat]}))}
-              style={{ width:'100%', display:'flex', alignItems:'center', gap:5, padding:'4px 7px', borderRadius:5, border:'none', cursor:'pointer', background:color+'12' }}
-              onMouseEnter={e=>e.currentTarget.style.background=color+'20'} onMouseLeave={e=>e.currentTarget.style.background=color+'12'}>
-              <span style={{fontSize:9,color}}>{isOpen?'▾':'▸'}</span>
-              <span style={{fontSize:10.5,fontWeight:700,color,flex:1,textAlign:'left'}}>{cat}</span>
-              <span style={{fontSize:10,color:'#334155'}}>{items.length}</span>
+            <button onClick={() => setCollapsed(p => ({ ...p, [cat]: !p[cat] }))}
+              className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-lg border-none cursor-pointer transition-colors duration-150 hover:bg-surface-raised"
+              style={{ background: color + '08' }}>
+              <span className="text-[9px]" style={{ color }}>{isOpen ? '\u25BE' : '\u25B8'}</span>
+              <span className="text-[10.5px] font-display font-bold flex-1 text-left" style={{ color }}>{cat}</span>
+              <span className="text-[10px] text-ink-600">{items.length}</span>
             </button>
             {isOpen && (
-              <div style={{paddingLeft:4,marginTop:2,display:'flex',flexDirection:'column',gap:1,maxHeight:220,overflowY:'auto'}}>
-                {items.map(a => <ItemRow key={a.alias} a={a}/>)}
+              <div className="pl-1 mt-0.5 flex flex-col gap-0.5 max-h-[220px] overflow-y-auto">
+                {items.map(a => <ItemRow key={a.alias} a={a} />)}
               </div>
             )}
           </div>

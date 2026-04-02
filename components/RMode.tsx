@@ -2,18 +2,10 @@
 
 /**
  * Python горим — Pyodide (браузер дотор Python + matplotlib, pandas)
- * WebR-г орлуулсан — 5 секундад ачаална, R syntax-тай төстэй жишээнүүд
  */
 
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Play, RefreshCw, Download, Database, BookOpen } from 'lucide-react';
-
-const C = {
-  green: '#00c87a', blue: '#60a5fa', purple: '#a78bfa',
-  yellow: '#fbbf24', red: '#f87171', bg: '#080d17',
-  card: '#0d1424', border: '#1a3050', text: '#e2e8f0',
-  muted: '#475569', dim: '#334155',
-} as const;
+import { Play, RefreshCw, Download, Database, BookOpen, Terminal } from 'lucide-react';
 
 const PY_EXAMPLES = [
   {
@@ -34,20 +26,19 @@ matplotlib.rcParams['font.family'] = 'DejaVu Sans'
 plot_data = df.copy()
 plot_data['Period'] = plot_data['Period'].astype(str)
 
-# Жилээр нийлбэр
 agg = plot_data.groupby('Period')['VALUE'].sum().reset_index()
 agg = agg.sort_values('Period')
 
-fig, ax = plt.subplots(figsize=(10, 5), facecolor='#0d1424')
-ax.set_facecolor('#0d1424')
-ax.plot(agg['Period'], agg['VALUE'], color='#00c87a', linewidth=2.5, marker='o', markersize=5)
-ax.tick_params(colors='#94a3b8')
+fig, ax = plt.subplots(figsize=(10, 5), facecolor='#0c1322')
+ax.set_facecolor('#0c1322')
+ax.plot(agg['Period'], agg['VALUE'], color='#00d68f', linewidth=2.5, marker='o', markersize=5)
+ax.tick_params(colors='#8898b0')
 ax.spines[['top','right']].set_visible(False)
-ax.spines[['bottom','left']].set_color('#1a3050')
+ax.spines[['bottom','left']].set_color('#1a2d4a')
 ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x:,.0f}'))
-ax.set_title('Цуваа өгөгдлийн өөрчлөлт', color='#f1f5f9', fontsize=13, pad=10)
-ax.set_xlabel('Он', color='#94a3b8')
-ax.set_ylabel('Утга', color='#94a3b8')
+ax.set_title('Цуваа өгөгдлийн өөрчлөлт', color='#d4dae6', fontsize=13, pad=10)
+ax.set_xlabel('Он', color='#8898b0')
+ax.set_ylabel('Утга', color='#8898b0')
 plt.xticks(rotation=45)
 plt.tight_layout()
 plt.show()`,
@@ -55,14 +46,11 @@ plt.show()`,
   {
     label: 'Багана диаграм',
     code: `import matplotlib.pyplot as plt
-import matplotlib.cm as cm
 import numpy as np
 
-# Сүүлийн жилийн өгөгдөл
 last_yr = df['Period'].astype(str).max()
 sub = df[df['Period'].astype(str) == last_yr]
 
-# Бүлэглэх багана олох
 skip = {'VALUE','Period'}
 cat_cols = [c for c in df.columns if c not in skip and not c.endswith('_CODE')]
 grp = cat_cols[0] if cat_cols else None
@@ -73,14 +61,14 @@ else:
     agg = sub.groupby(grp)['VALUE'].sum().nlargest(20).sort_values()
     colors = plt.cm.RdYlGn(np.linspace(0.2, 0.9, len(agg)))
 
-    fig, ax = plt.subplots(figsize=(10, 7), facecolor='#0d1424')
-    ax.set_facecolor('#0d1424')
+    fig, ax = plt.subplots(figsize=(10, 7), facecolor='#0c1322')
+    ax.set_facecolor('#0c1322')
     bars = ax.barh(agg.index.astype(str), agg.values, color=colors, alpha=0.9)
-    ax.tick_params(colors='#94a3b8')
+    ax.tick_params(colors='#8898b0')
     ax.spines[['top','right']].set_visible(False)
-    ax.spines[['bottom','left']].set_color('#1a3050')
+    ax.spines[['bottom','left']].set_color('#1a2d4a')
     ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x:,.0f}'))
-    ax.set_title(f'Top 20: {grp} ({last_yr})', color='#f1f5f9', fontsize=13)
+    ax.set_title(f'Top 20: {grp} ({last_yr})', color='#d4dae6', fontsize=13)
     plt.tight_layout()
     plt.show()`,
   },
@@ -88,7 +76,6 @@ else:
     label: 'Регресс + Таамаглал',
     code: `import matplotlib.pyplot as plt
 import numpy as np
-from numpy.polynomial import polynomial as P
 
 agg = df.groupby('Period')['VALUE'].sum().reset_index()
 agg['Period'] = agg['Period'].astype(float)
@@ -97,7 +84,6 @@ agg = agg.sort_values('Period')
 x = agg['Period'].values
 y = agg['VALUE'].values
 
-# Шугаман регресс
 coef = np.polyfit(x, y, 1)
 poly = np.poly1d(coef)
 
@@ -111,17 +97,17 @@ print("\\n=== Таамаглал ===")
 for yr, val in zip(future, pred):
     print(f"  {int(yr)}: {val:,.0f}")
 
-fig, ax = plt.subplots(figsize=(10, 5), facecolor='#0d1424')
-ax.set_facecolor('#0d1424')
-ax.plot(x, y, color='#00c87a', linewidth=2, marker='o', markersize=4, label='Бодит')
-ax.plot(x, poly(x), color='#60a5fa', linewidth=1.5, linestyle='--', label='Регресс')
+fig, ax = plt.subplots(figsize=(10, 5), facecolor='#0c1322')
+ax.set_facecolor('#0c1322')
+ax.plot(x, y, color='#00d68f', linewidth=2, marker='o', markersize=4, label='Бодит')
+ax.plot(x, poly(x), color='#5b9cf6', linewidth=1.5, linestyle='--', label='Регресс')
 ax.scatter(future, pred, color='#a78bfa', s=60, zorder=5, label='Таамаглал')
-ax.tick_params(colors='#94a3b8')
+ax.tick_params(colors='#8898b0')
 ax.spines[['top','right']].set_visible(False)
-ax.spines[['bottom','left']].set_color('#1a3050')
+ax.spines[['bottom','left']].set_color('#1a2d4a')
 ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x:,.0f}'))
-ax.set_title('Регресс + Таамаглал', color='#f1f5f9', fontsize=13)
-ax.legend(facecolor='#0d1424', labelcolor='#e2e8f0', framealpha=0.5)
+ax.set_title('Регресс + Таамаглал', color='#d4dae6', fontsize=13)
+ax.legend(facecolor='#0c1322', labelcolor='#d4dae6', framealpha=0.5)
 plt.tight_layout()
 plt.show()`,
   },
@@ -130,16 +116,16 @@ plt.show()`,
     code: `import matplotlib.pyplot as plt
 
 vals = df['VALUE'].dropna()
-fig, ax = plt.subplots(figsize=(9, 5), facecolor='#0d1424')
-ax.set_facecolor('#0d1424')
-ax.hist(vals, bins=30, color='#00c87a', alpha=0.85, edgecolor='#060c18')
-ax.tick_params(colors='#94a3b8')
+fig, ax = plt.subplots(figsize=(9, 5), facecolor='#0c1322')
+ax.set_facecolor('#0c1322')
+ax.hist(vals, bins=30, color='#00d68f', alpha=0.85, edgecolor='#070c18')
+ax.tick_params(colors='#8898b0')
 ax.spines[['top','right']].set_visible(False)
-ax.spines[['bottom','left']].set_color('#1a3050')
+ax.spines[['bottom','left']].set_color('#1a2d4a')
 ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x:,.0f}'))
-ax.set_title('Утгын хуваарилалт', color='#f1f5f9', fontsize=13)
-ax.set_xlabel('Утга', color='#94a3b8')
-ax.set_ylabel('Тоо', color='#94a3b8')
+ax.set_title('Утгын хуваарилалт', color='#d4dae6', fontsize=13)
+ax.set_xlabel('Утга', color='#8898b0')
+ax.set_ylabel('Тоо', color='#8898b0')
 plt.tight_layout()
 plt.show()`,
   },
@@ -153,39 +139,38 @@ if len(num_cols) < 2:
     print("Тоон багана хангалтгүй")
 else:
     corr = df[num_cols].corr()
-    fig, ax = plt.subplots(figsize=(8, 6), facecolor='#0d1424')
-    ax.set_facecolor('#0d1424')
+    fig, ax = plt.subplots(figsize=(8, 6), facecolor='#0c1322')
+    ax.set_facecolor('#0c1322')
     im = ax.imshow(corr.values, cmap='RdYlGn', vmin=-1, vmax=1)
     plt.colorbar(im, ax=ax)
     ax.set_xticks(range(len(num_cols)))
     ax.set_yticks(range(len(num_cols)))
-    ax.set_xticklabels(num_cols, rotation=45, ha='right', color='#94a3b8', fontsize=9)
-    ax.set_yticklabels(num_cols, color='#94a3b8', fontsize=9)
+    ax.set_xticklabels(num_cols, rotation=45, ha='right', color='#8898b0', fontsize=9)
+    ax.set_yticklabels(num_cols, color='#8898b0', fontsize=9)
     for i in range(len(num_cols)):
         for j in range(len(num_cols)):
             ax.text(j, i, f'{corr.values[i,j]:.2f}', ha='center', va='center',
                    color='white', fontsize=9, fontweight='bold')
-    ax.set_title('Корреляцийн матриц', color='#f1f5f9', fontsize=13)
+    ax.set_title('Корреляцийн матриц', color='#d4dae6', fontsize=13)
     plt.tight_layout()
     plt.show()`,
   },
 ];
 
-// ── Pyodide iframe HTML ───────────────────────────────────────────────────────
 const PYODIDE_HTML = `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #080d17; color: #e2e8f0; font-family: monospace; font-size: 12px; }
-  #out { padding: 10px; white-space: pre-wrap; word-break: break-word; line-height: 1.6; }
-  #out .err { color: #f87171; }
-  #out .ok  { color: #00c87a; }
-  #out .img { display: block; max-width: 100%; border-radius: 6px; margin: 8px 0; }
+  body { background: #050a14; color: #d4dae6; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+  #out { padding: 12px; white-space: pre-wrap; word-break: break-word; line-height: 1.7; }
+  #out .err { color: #f05252; }
+  #out .ok  { color: #00d68f; }
+  #out .img { display: block; max-width: 100%; border-radius: 8px; margin: 10px 0; }
 </style>
 </head>
 <body>
-<div id="out"><span class="ok">⏳ Pyodide ачааллаж байна (~5 сек)...</span></div>
+<div id="out"><span class="ok">Pyodide ачааллаж байна (~5 сек)...</span></div>
 <script>
 let pyodide = null;
 let df_json = null;
@@ -199,184 +184,109 @@ function log(msg, cls='') {
   d.scrollTop = d.scrollHeight;
 }
 
-function clearOut() {
-  document.getElementById('out').innerHTML = '';
-}
-
 async function init() {
   try {
+    importScripts ? 0 : 0;
     const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/pyodide/v0.27.0/full/pyodide.js';
+    script.src = 'https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js';
     script.onload = async () => {
-      try {
-        pyodide = await loadPyodide({ indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.27.0/full/' });
-        await pyodide.loadPackage(['pandas', 'matplotlib', 'numpy']);
-        
-        // matplotlib backend тохируулах
-        await pyodide.runPythonAsync(\`
-import matplotlib
-matplotlib.use('AGG')
-import matplotlib.pyplot as plt
-import pandas as pd
-import numpy as np
-import io, base64, sys
-
-class Capture:
-    def __init__(self): self.buf = []
-    def write(self, s): self.buf.append(s)
-    def flush(self): pass
-    def getvalue(self): return ''.join(self.buf)
-
-print("✓ Pyodide + pandas + matplotlib бэлэн!")
-\`);
-        window.parent.postMessage({ type: 'ready' }, '*');
-        clearOut();
-        log('✓ Python бэлэн! Өгөгдлөө ачааллаад код бичнэ үү.', 'ok');
-      } catch(e) {
-        log('Алдаа: ' + e.message, 'err');
-        window.parent.postMessage({ type: 'error', msg: e.message }, '*');
-      }
+      pyodide = await loadPyodide();
+      await pyodide.loadPackage(['numpy','pandas','matplotlib']);
+      document.getElementById('out').innerHTML = '';
+      log('Python бэлэн! (pandas, matplotlib, numpy)', 'ok');
+      parent.postMessage({ type:'status', status:'ready', msg:'Python бэлэн' }, '*');
     };
     document.head.appendChild(script);
-  } catch(e) {
-    log('Script ачааллах алдаа: ' + e.message, 'err');
-  }
+  } catch(e) { log('Алдаа: '+e.message, 'err'); parent.postMessage({type:'status',status:'error',msg:e.message},'*'); }
 }
 
-async function runCode(code, data) {
-  if (!pyodide) { log('Pyodide бэлэн болоогүй', 'err'); return; }
-  clearOut();
-  
-  try {
-    // DataFrame үүсгэх
-    if (data && data.length > 0) {
-      const jsonStr = JSON.stringify(data);
-      pyodide.globals.set('_raw_json', jsonStr);
-      await pyodide.runPythonAsync(\`
-import json, pandas as pd
-_raw = json.loads(_raw_json)
-df = pd.DataFrame(_raw)
-# Тоон баганыг автоматаар хөрвүүлэх
-for col in df.columns:
-    try:
-        converted = pd.to_numeric(df[col], errors='coerce')
-        if converted.notna().sum() / max(len(df), 1) > 0.7:
-            df[col] = converted
+window.addEventListener('message', async (ev) => {
+  if (ev.data.type === 'loadData') {
+    df_json = ev.data.data;
+    log('df ачааллаа: ' + df_json.length + ' мөр', 'ok');
+  }
+  if (ev.data.type === 'run' && pyodide) {
+    parent.postMessage({type:'status',status:'running',msg:'Ажиллаж байна...'},'*');
+    document.getElementById('out').innerHTML = '';
+    try {
+      if (ev.data.data && ev.data.data.length > 0) df_json = ev.data.data;
+      const setup = df_json ? \`
+import pandas as pd, json, io, base64, sys
+df = pd.DataFrame(json.loads('\${JSON.stringify(df_json).replace(/\\\\/g,'\\\\\\\\').replace(/'/g,"\\\\'")}'))
+for c in df.columns:
+    try: df[c] = pd.to_numeric(df[c])
     except: pass
-print(f"✓ df ачааллаа: {len(df)} мөр, {len(df.columns)} багана")
-print(f"  Баганууд: {', '.join(df.columns.tolist())}")
-\`);
-    } else {
-      await pyodide.runPythonAsync('df = pd.DataFrame()\\nprint("⚠️ Өгөгдөл хоосон — эхлээд өгөгдөл ачаална уу")');
-    }
-
-    // Stdout capture + matplotlib hook
-    await pyodide.runPythonAsync(\`
-import sys, io, base64, matplotlib.pyplot as plt
-
-_stdout_capture = io.StringIO()
-_old_stdout = sys.stdout
-sys.stdout = _stdout_capture
-
-_images = []
-_orig_show = plt.show
-def _capture_show():
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+_old_show = plt.show
+def _new_show(*a,**k):
     buf = io.BytesIO()
-    plt.savefig(buf, format='png', dpi=100, bbox_inches='tight', facecolor=plt.gcf().get_facecolor())
+    plt.savefig(buf, format='png', dpi=120, bbox_inches='tight', facecolor=plt.gcf().get_facecolor())
     buf.seek(0)
-    _images.append(base64.b64encode(buf.read()).decode())
-    plt.close('all')
-plt.show = _capture_show
-\`);
+    b64 = base64.b64encode(buf.read()).decode()
+    el = document.createElement('img')
+    el.src = 'data:image/png;base64,' + b64
+    el.className = 'img'
+    document.getElementById('out').appendChild(el)
+    plt.close()
+plt.show = _new_show
 
-    // Хэрэглэгчийн код ажиллуулах
-    pyodide.globals.set('_user_code', code);
-    await pyodide.runPythonAsync(\`
-try:
-    exec(_user_code, {'df': df, 'plt': plt, 'pd': pd, 'np': np, '__builtins__': __builtins__})
-except Exception as e:
-    import traceback
-    print("❌ Алдаа:", str(e))
-    print(traceback.format_exc())
-finally:
-    sys.stdout = _old_stdout
-    plt.show = _orig_show
-\`);
-
-    // Output авах
-    const stdout = pyodide.globals.get('_stdout_capture').getvalue();
-    const images = pyodide.globals.get('_images').toJs();
-
-    if (stdout.trim()) log(stdout);
-    
-    for (const img of images) {
-      const d = document.getElementById('out');
-      const el = document.createElement('img');
-      el.className = 'img';
-      el.src = 'data:image/png;base64,' + img;
-      d.appendChild(el);
+class _Capture:
+    def write(self, t):
+        if t.strip():
+            el = document.createElement('span')
+            el.textContent = t + '\\n'
+            document.getElementById('out').appendChild(el)
+    def flush(self): pass
+sys.stdout = _Capture()
+sys.stderr = type('E',(object,),{'write':lambda s,t: log(t,'err'),'flush':lambda s:None})()
+\` : '';
+      await pyodide.runPythonAsync(setup + '\\n' + ev.data.code);
+      parent.postMessage({type:'status',status:'ready',msg:'Дууслаа'},'*');
+    } catch(e) {
+      log(e.message, 'err');
+      parent.postMessage({type:'status',status:'ready',msg:'Алдаа гарлаа'},'*');
     }
-
-    if (!stdout.trim() && images.length === 0) {
-      log('(гаралт байхгүй)', 'ok');
-    }
-
-    window.parent.postMessage({ type: 'done' }, '*');
-  } catch(e) {
-    log('Runtime алдаа: ' + e.message, 'err');
-    window.parent.postMessage({ type: 'done' }, '*');
   }
-}
-
-window.addEventListener('message', e => {
-  if (e.data?.type === 'run') runCode(e.data.code, e.data.data);
 });
-
 init();
-</script>
-</body>
-</html>`;
+<\/script>
+</body></html>`;
 
-// ── Main Component ────────────────────────────────────────────────────────────
-interface DataRow { [key: string]: string | number }
-
-interface Props {
-  initialRows?: DataRow[];
-}
-
-export default function RMode({ initialRows }: Props) {
-  const [code, setCode] = useState(PY_EXAMPLES[0].code);
-  const [status, setStatus] = useState<'loading' | 'ready' | 'running' | 'error'>('loading');
-  const [statusMsg, setStatusMsg] = useState('Pyodide ачааллаж байна... (~5 сек)');
-  const [rows, setRows] = useState<DataRow[]>(initialRows ?? []);
-  const [dataLoading, setDataLoading] = useState(false);
-  const [tblPath, setTblPath] = useState('');
+export default function RMode() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const blobUrl = useRef<string>('');
+  const [status, setStatus] = useState<'loading' | 'ready' | 'running' | 'error'>('loading');
+  const [statusMsg, setStatusMsg] = useState('Pyodide ачааллаж байна...');
+  const [code, setCode] = useState(PY_EXAMPLES[0].code);
+  const [rows, setRows] = useState<Record<string, unknown>[]>([]);
+  const [tblPath, setTblPath] = useState('');
+  const [dataLoading, setDataLoading] = useState(false);
 
-  // Blob URL үүсгэх
   useEffect(() => {
-    const blob = new Blob([PYODIDE_HTML], { type: 'text/html' });
-    blobUrl.current = URL.createObjectURL(blob);
-    if (iframeRef.current) iframeRef.current.src = blobUrl.current;
-    return () => URL.revokeObjectURL(blobUrl.current);
-  }, []);
-
-  // iframe message handler
-  useEffect(() => {
-    const handler = (e: MessageEvent) => {
-      const { type, msg } = e.data ?? {};
-      if (type === 'ready') { setStatus('ready'); setStatusMsg('✓ Python бэлэн'); }
-      else if (type === 'error') { setStatus('error'); setStatusMsg(msg ?? 'Алдаа'); }
-      else if (type === 'done') setStatus('ready');
+    const handler = (ev: MessageEvent) => {
+      if (ev.data?.type === 'status') {
+        setStatus(ev.data.status);
+        setStatusMsg(ev.data.msg ?? '');
+      }
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
   }, []);
 
+  useEffect(() => {
+    if (!iframeRef.current) return;
+    iframeRef.current.srcdoc = PYODIDE_HTML;
+  }, []);
+
+  useEffect(() => {
+    if (rows.length > 0 && iframeRef.current) {
+      iframeRef.current.contentWindow?.postMessage({ type: 'loadData', data: rows }, '*');
+    }
+  }, [rows]);
+
   const runCode = useCallback(() => {
     if (status !== 'ready') return;
-    setStatus('running');
     iframeRef.current?.contentWindow?.postMessage({ type: 'run', code, data: rows }, '*');
   }, [code, rows, status]);
 
@@ -400,42 +310,31 @@ export default function RMode({ initialRows }: Props) {
     }
   };
 
-  const downloadCSV = () => {
-    if (!rows.length) return;
-    const cols = Object.keys(rows[0]);
-    const csv = [cols.join(','), ...rows.map(r => cols.map(c => `"${r[c] ?? ''}"`).join(','))].join('\n');
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-    a.download = 'data.csv';
-    a.click();
-  };
-
-  const statusColor = status === 'ready' ? C.green : status === 'error' ? C.red : status === 'running' ? C.yellow : C.muted;
+  const statusColor = status === 'ready' ? 'text-accent' : status === 'error' ? 'text-danger' : status === 'running' ? 'text-accent3' : 'text-ink-500';
+  const statusDot = status === 'ready' ? 'bg-accent shadow-glow-green' : status === 'error' ? 'bg-danger' : status === 'running' ? 'bg-accent3' : 'bg-ink-600';
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 16, alignItems: 'start', minHeight: 600 }}>
+    <div className="layout-main grid gap-4 items-start min-h-[600px]" style={{ gridTemplateColumns: '1fr 320px' }}>
 
-      {/* Left: editor + iframe */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {/* Left: editor + output */}
+      <div className="flex flex-col gap-3">
 
         {/* Status bar */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', background: C.card, border: `1px solid ${C.border}`, borderRadius: 9 }}>
-          <span style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor, display: 'inline-block', boxShadow: `0 0 6px ${statusColor}` }} />
-          <span style={{ fontSize: 12, color: statusColor, fontFamily: 'JetBrains Mono', flex: 1 }}>{statusMsg}</span>
-          <span style={{ fontSize: 10, color: C.dim, fontFamily: 'JetBrains Mono' }}>🐍 Python · pandas · matplotlib · numpy</span>
+        <div className="card flex items-center gap-3 !py-2.5 !px-4">
+          <span className={`w-2 h-2 rounded-full ${statusDot} flex-shrink-0`} />
+          <span className={`text-xs font-mono flex-1 ${statusColor}`}>{statusMsg}</span>
+          <span className="text-[10px] text-ink-600 font-mono tracking-wider">PYTHON / PANDAS / MATPLOTLIB</span>
         </div>
 
         {/* Code editor */}
-        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderBottom: `1px solid ${C.border}` }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: C.blue, letterSpacing: '0.08em' }}>PYTHON КОД</span>
-            <span style={{ fontSize: 10, color: C.dim, marginLeft: 4 }}>df = таны өгөгдөл</span>
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-              <button onClick={runCode} disabled={status !== 'ready'}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 16px', background: status === 'ready' ? C.green : C.dim, color: '#000', fontWeight: 700, fontSize: 12, borderRadius: 7, border: 'none', cursor: status === 'ready' ? 'pointer' : 'not-allowed', transition: 'all 0.15s' }}>
-                {status === 'running'
-                  ? <RefreshCw size={13} style={{ animation: 'spin 0.7s linear infinite' }} />
-                  : <Play size={13} />}
+        <div className="card !p-0 overflow-hidden">
+          <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border">
+            <Terminal size={12} className="text-accent2" />
+            <span className="label-upper text-accent2">Python код</span>
+            <span className="text-[10px] text-ink-600 ml-1">df = таны өгөгдөл</span>
+            <div className="ml-auto">
+              <button onClick={runCode} disabled={status !== 'ready'} className="btn-primary !py-1.5 !px-4 !text-xs">
+                {status === 'running' ? <RefreshCw size={12} className="spin" /> : <Play size={12} />}
                 {status === 'running' ? 'Ажиллаж байна...' : 'Ажиллуулах'}
               </button>
             </div>
@@ -445,64 +344,65 @@ export default function RMode({ initialRows }: Props) {
             onChange={e => setCode(e.target.value)}
             onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); runCode(); } }}
             spellCheck={false}
-            style={{
-              width: '100%', minHeight: 240, padding: '12px 14px',
-              fontFamily: 'JetBrains Mono, monospace', fontSize: 12.5, lineHeight: 1.7,
-              color: '#e2e8f0', background: '#060c18', border: 'none', outline: 'none',
-              resize: 'vertical', tabSize: 4,
-            }}
+            className="w-full min-h-[240px] px-4 py-3 font-mono text-code text-ink-200 bg-surface-dark border-none outline-none resize-y"
+            style={{ tabSize: 4 }}
           />
-          <div style={{ padding: '5px 14px', borderTop: `1px solid ${C.border}`, fontSize: 10, color: C.dim }}>
-            Ctrl+Enter: ажиллуулах
+          <div className="px-4 py-1.5 border-t border-border text-[10px] text-ink-600 font-mono tracking-wider">
+            CTRL+ENTER: АЖИЛЛУУЛАХ
           </div>
         </div>
 
         {/* Output iframe */}
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, overflow: 'hidden' }}>
-          <div style={{ padding: '8px 14px', borderBottom: `1px solid ${C.border}`, fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: '0.08em' }}>
-            ГАРАЛТ
+        <div className="card !p-0 overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-border">
+            <span className="label-upper text-ink-500">Гаралт</span>
           </div>
           <iframe
             ref={iframeRef}
-            style={{ width: '100%', height: 400, border: 'none', background: '#080d17' }}
+            className="w-full border-none bg-surface-darker"
+            style={{ height: 400 }}
             sandbox="allow-scripts allow-same-origin"
           />
         </div>
       </div>
 
-      {/* Right: sidebar */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {/* Right sidebar */}
+      <div className="flex flex-col gap-3 hide-mobile">
 
         {/* Data loader */}
         <div className="card">
-          <div style={{ fontSize: 11, fontWeight: 700, color: C.green, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 10 }}>
-            <Database size={11} style={{ display: 'inline', marginRight: 5 }} />
-            Өгөгдөл ачаалах
+          <div className="flex items-center gap-1.5 mb-3">
+            <Database size={12} className="text-accent" />
+            <span className="label-upper text-accent">Өгөгдөл ачаалах</span>
           </div>
           <input
             value={tblPath}
             onChange={e => setTblPath(e.target.value)}
-            placeholder='жш: population, gdp, unemployment...'
-            style={{ width: '100%', padding: '8px 10px', background: '#060c18', border: `1px solid ${C.border}`, borderRadius: 7, color: C.text, fontSize: 11.5, fontFamily: 'JetBrains Mono', outline: 'none', marginBottom: 8 }}
+            placeholder="жш: population, gdp..."
+            className="input-search !text-xs font-mono mb-2"
           />
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button onClick={loadData} disabled={dataLoading || !tblPath.trim()}
-              style={{ flex: 1, padding: '7px 0', background: C.green, color: '#000', fontWeight: 700, fontSize: 12, borderRadius: 7, border: 'none', cursor: 'pointer' }}>
-              {dataLoading ? '⏳ Татаж байна...' : '📥 Татах'}
+          <div className="flex gap-1.5">
+            <button onClick={loadData} disabled={dataLoading || !tblPath.trim()} className="btn-primary flex-1 !text-xs !py-2 justify-center">
+              {dataLoading ? 'Татаж байна...' : 'Татах'}
             </button>
             {rows.length > 0 && (
-              <button onClick={downloadCSV}
-                style={{ padding: '7px 12px', background: 'transparent', border: `1px solid ${C.border}`, borderRadius: 7, color: C.muted, cursor: 'pointer' }}>
-                <Download size={13} />
+              <button onClick={() => {
+                const cols = Object.keys(rows[0]);
+                const csv = [cols.join(','), ...rows.map(r => cols.map(c => `"${r[c] ?? ''}"`).join(','))].join('\n');
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+                a.download = 'data.csv'; a.click();
+              }} className="btn-ghost !py-2">
+                <Download size={12} />
               </button>
             )}
           </div>
           {rows.length > 0 && (
-            <div style={{ marginTop: 8, padding: '6px 10px', background: 'rgba(0,200,122,0.06)', borderRadius: 6, border: `1px solid rgba(0,200,122,0.15)` }}>
-              <span style={{ fontSize: 11, color: C.green, fontFamily: 'JetBrains Mono' }}>
-                ✓ df: {rows.length.toLocaleString()} мөр · {Object.keys(rows[0] ?? {}).length} багана
+            <div className="mt-2 p-2.5 bg-accent-dim rounded-lg border border-accent/20">
+              <span className="text-[11px] text-accent font-mono font-bold">
+                df: {rows.length.toLocaleString()} мөр · {Object.keys(rows[0] ?? {}).length} багана
               </span>
-              <div style={{ fontSize: 10, color: C.dim, marginTop: 3, fontFamily: 'JetBrains Mono' }}>
+              <div className="text-[10px] text-ink-600 mt-1 font-mono leading-relaxed truncate">
                 {Object.keys(rows[0] ?? {}).join(', ')}
               </div>
             </div>
@@ -511,16 +411,14 @@ export default function RMode({ initialRows }: Props) {
 
         {/* Examples */}
         <div className="card">
-          <div style={{ fontSize: 11, fontWeight: 700, color: C.blue, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 10 }}>
-            <BookOpen size={11} style={{ display: 'inline', marginRight: 5 }} />
-            Жишээ кодууд
+          <div className="flex items-center gap-1.5 mb-3">
+            <BookOpen size={12} className="text-accent2" />
+            <span className="label-upper text-accent2">Жишээ кодууд</span>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+          <div className="flex flex-col gap-1.5">
             {PY_EXAMPLES.map(ex => (
               <button key={ex.label} onClick={() => setCode(ex.code)}
-                style={{ padding: '8px 12px', background: '#0a1428', border: `1px solid ${C.border}`, borderRadius: 7, color: C.text, fontSize: 12, cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s' }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = C.blue; e.currentTarget.style.background = 'rgba(96,165,250,0.05)'; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = '#0a1428'; }}>
+                className="btn-ghost w-full justify-start !text-xs !py-2">
                 {ex.label}
               </button>
             ))}
@@ -529,23 +427,24 @@ export default function RMode({ initialRows }: Props) {
 
         {/* Quick reference */}
         <div className="card">
-          <div style={{ fontSize: 11, fontWeight: 700, color: C.purple, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>
-            Лавлах
+          <div className="flex items-center gap-1.5 mb-3">
+            <span className="label-upper" style={{ color: '#a78bfa' }}>Лавлах</span>
           </div>
-          {[
-            ['df', 'Таны өгөгдөл (DataFrame)'],
-            ['df.columns', 'Баганы нэрүүд'],
-            ['df["VALUE"]', 'VALUE багана'],
-            ['df.groupby("Он")["VALUE"].sum()', 'Жилээр нийлбэр'],
-            ['df[df["Он"]=="2023"]', 'Жилээр шүүх'],
-            ['df.describe()', 'Статистик дүгнэлт'],
-            ['plt.show()', 'График харуулах'],
-          ].map(([code, desc]) => (
-            <div key={code} style={{ marginBottom: 5 }}>
-              <code style={{ fontSize: 10, color: C.green, fontFamily: 'JetBrains Mono' }}>{code}</code>
-              <div style={{ fontSize: 10, color: C.dim }}>{desc}</div>
-            </div>
-          ))}
+          <div className="flex flex-col gap-2">
+            {[
+              ['df', 'Таны өгөгдөл'],
+              ['df.columns', 'Баганы нэрүүд'],
+              ['df["VALUE"]', 'VALUE багана'],
+              ['df.groupby("Он")["VALUE"].sum()', 'Жилээр нийлбэр'],
+              ['df.describe()', 'Статистик дүгнэлт'],
+              ['plt.show()', 'График харуулах'],
+            ].map(([c, desc]) => (
+              <div key={c}>
+                <code className="text-[10px] text-accent font-mono">{c}</code>
+                <div className="text-[10px] text-ink-600">{desc}</div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>
