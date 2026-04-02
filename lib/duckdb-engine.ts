@@ -95,7 +95,8 @@ export async function runSQL(
   }
 
   try {
-    // Dynamic import — @duckdb/node-api
+    // Dynamic import — @duckdb/node-api (optional dependency)
+    // @ts-ignore — DuckDB may not be installed in serverless environments
     const duckdb = await import('@duckdb/node-api');
     instance = await duckdb.DuckDBInstance.create(':memory:');
     conn = await instance.connect();
