@@ -13,11 +13,10 @@
     "react": "^18",
     "react-dom": "^18",
     "recharts": "^2.12.7",
-    "lucide-react": "^0.400.0",
-    "@duckdb/node-api": "^1.4.4"
+    "lucide-react": "^0.400.0"
   },
-  "overrides": {
-    "@duckdb/node-bindings": "$@duckdb/node-bindings"
+  "optionalDependencies": {
+    "@duckdb/node-api": "^1.4.4"
   },
   "devDependencies": {
     "@types/node": "^20",
