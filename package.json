@@ -16,6 +16,9 @@
     "lucide-react": "^0.400.0",
     "@duckdb/node-api": "^1.4.4"
   },
+  "overrides": {
+    "@duckdb/node-bindings": "$@duckdb/node-bindings"
+  },
   "devDependencies": {
     "@types/node": "^20",
     "@types/react": "^18",
