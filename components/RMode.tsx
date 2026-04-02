@@ -11,151 +11,202 @@ import type { TableEntry } from '@/lib/types';
 
 const PY_EXAMPLES = [
   {
-    label: 'Товч харах',
-    code: `print("=== Хэмжээ ===")
-print(f"Мөр: {len(df)}  Багана: {len(df.columns)}")
-print("\\n=== Баганууд ===")
-print(df.dtypes)
-print("\\n=== Дүгнэлт ===")
-print(df.describe())`,
+    label: '1. Дата шалгах',
+    code: `# Өгөгдлийн бүтцийг хурдан харах
+print("=" * 50)
+print(f"  Нийт мөр:    {len(df):,}")
+print(f"  Нийт багана: {len(df.columns)}")
+print("=" * 50)
+
+print("\\nБаганууд:")
+for col in df.columns:
+    uniqs = df[col].nunique()
+    print(f"  {col:30s}  ({df[col].dtype})  — {uniqs} ялгаатай утга")
+
+print("\\nЭхний 5 мөр:")
+print(df.head().to_string())
+
+if 'VALUE' in df.columns:
+    print(f"\\nVALUE статистик:")
+    print(f"  Дундаж:  {df['VALUE'].mean():,.1f}")
+    print(f"  Хамгийн их: {df['VALUE'].max():,.1f}")
+    print(f"  Хамгийн бага: {df['VALUE'].min():,.1f}")`,
   },
   {
-    label: 'Шугаман график',
+    label: '2. Жилийн тренд',
     code: `import matplotlib.pyplot as plt
-import matplotlib
-matplotlib.rcParams['font.family'] = 'DejaVu Sans'
 
-plot_data = df.copy()
-plot_data['Period'] = plot_data['Period'].astype(str)
+# Он/Period баганыг олох
+period_col = None
+for c in df.columns:
+    if c in ('Он', 'Period', 'Year', 'Үе'):
+        period_col = c
+        break
 
-agg = plot_data.groupby('Period')['VALUE'].sum().reset_index()
-agg = agg.sort_values('Period')
+if period_col is None:
+    print("Он/Period багана олдсонгүй")
+    print("Байгаа баганууд:", list(df.columns))
+else:
+    agg = df.groupby(period_col)['VALUE'].sum().reset_index()
+    agg[period_col] = agg[period_col].astype(str)
+    agg = agg.sort_values(period_col)
 
-fig, ax = plt.subplots(figsize=(10, 5), facecolor='#0c1322')
-ax.set_facecolor('#0c1322')
-ax.plot(agg['Period'], agg['VALUE'], color='#00d68f', linewidth=2.5, marker='o', markersize=5)
-ax.tick_params(colors='#8898b0')
-ax.spines[['top','right']].set_visible(False)
-ax.spines[['bottom','left']].set_color('#1a2d4a')
-ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x:,.0f}'))
-ax.set_title('Цуваа өгөгдлийн өөрчлөлт', color='#d4dae6', fontsize=13, pad=10)
-ax.set_xlabel('Он', color='#8898b0')
-ax.set_ylabel('Утга', color='#8898b0')
-plt.xticks(rotation=45)
-plt.tight_layout()
-plt.show()`,
+    fig, ax = plt.subplots(figsize=(10, 5), facecolor='#0c1322')
+    ax.set_facecolor('#0c1322')
+    ax.plot(agg[period_col], agg['VALUE'], color='#00d68f',
+            linewidth=2.5, marker='o', markersize=6)
+    ax.fill_between(range(len(agg)), agg['VALUE'], alpha=0.1, color='#00d68f')
+    ax.tick_params(colors='#8898b0', labelsize=9)
+    ax.spines[['top','right']].set_visible(False)
+    ax.spines[['bottom','left']].set_color('#1a2d4a')
+    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x:,.0f}'))
+    ax.set_title(f'{period_col} дахь өөрчлөлт', color='#d4dae6', fontsize=14, fontweight='bold')
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.show()
+    print(f"\\n{period_col} тоо: {len(agg)}")
+    print(f"Хамгийн их: {agg.loc[agg['VALUE'].idxmax(), period_col]} = {agg['VALUE'].max():,.0f}")`,
   },
   {
-    label: 'Багана диаграм',
+    label: '3. Top 20 харьцуулалт',
     code: `import matplotlib.pyplot as plt
 import numpy as np
 
-last_yr = df['Period'].astype(str).max()
-sub = df[df['Period'].astype(str) == last_yr]
+# VALUE-гаас бусад тоон бус баганыг олох
+skip = {'VALUE', 'Period', 'Он', 'Year'}
+cat_cols = [c for c in df.columns
+            if c not in skip and not c.endswith('_CODE') and df[c].dtype == 'object']
 
-skip = {'VALUE','Period'}
-cat_cols = [c for c in df.columns if c not in skip and not c.endswith('_CODE')]
-grp = cat_cols[0] if cat_cols else None
-
-if grp is None:
+if not cat_cols:
     print("Бүлэглэх багана олдсонгүй")
 else:
-    agg = sub.groupby(grp)['VALUE'].sum().nlargest(20).sort_values()
-    colors = plt.cm.RdYlGn(np.linspace(0.2, 0.9, len(agg)))
+    grp = cat_cols[0]
+    agg = df.groupby(grp)['VALUE'].sum().nlargest(20).sort_values()
+    colors = plt.cm.viridis(np.linspace(0.2, 0.9, len(agg)))
 
-    fig, ax = plt.subplots(figsize=(10, 7), facecolor='#0c1322')
+    fig, ax = plt.subplots(figsize=(10, max(5, len(agg)*0.35)), facecolor='#0c1322')
     ax.set_facecolor('#0c1322')
-    bars = ax.barh(agg.index.astype(str), agg.values, color=colors, alpha=0.9)
+    bars = ax.barh(range(len(agg)), agg.values, color=colors)
+    ax.set_yticks(range(len(agg)))
+    ax.set_yticklabels([str(x)[:35] for x in agg.index], fontsize=9)
     ax.tick_params(colors='#8898b0')
     ax.spines[['top','right']].set_visible(False)
     ax.spines[['bottom','left']].set_color('#1a2d4a')
     ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x:,.0f}'))
-    ax.set_title(f'Top 20: {grp} ({last_yr})', color='#d4dae6', fontsize=13)
+    ax.set_title(f'Top 20: {grp}', color='#d4dae6', fontsize=14, fontweight='bold')
     plt.tight_layout()
     plt.show()`,
   },
   {
-    label: 'Регресс + Таамаглал',
-    code: `import matplotlib.pyplot as plt
-import numpy as np
-
-agg = df.groupby('Period')['VALUE'].sum().reset_index()
-agg['Period'] = agg['Period'].astype(float)
-agg = agg.sort_values('Period')
-
-x = agg['Period'].values
-y = agg['VALUE'].values
-
-coef = np.polyfit(x, y, 1)
-poly = np.poly1d(coef)
-
-future = np.arange(x.max()+1, x.max()+6)
-pred = poly(future)
-
-print("=== Регрессийн коэффициент ===")
-print(f"  Жилийн өсөлт: {coef[0]:,.0f}")
-print(f"  Суурь утга:   {coef[1]:,.0f}")
-print("\\n=== Таамаглал ===")
-for yr, val in zip(future, pred):
-    print(f"  {int(yr)}: {val:,.0f}")
-
-fig, ax = plt.subplots(figsize=(10, 5), facecolor='#0c1322')
-ax.set_facecolor('#0c1322')
-ax.plot(x, y, color='#00d68f', linewidth=2, marker='o', markersize=4, label='Бодит')
-ax.plot(x, poly(x), color='#5b9cf6', linewidth=1.5, linestyle='--', label='Регресс')
-ax.scatter(future, pred, color='#a78bfa', s=60, zorder=5, label='Таамаглал')
-ax.tick_params(colors='#8898b0')
-ax.spines[['top','right']].set_visible(False)
-ax.spines[['bottom','left']].set_color('#1a2d4a')
-ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x:,.0f}'))
-ax.set_title('Регресс + Таамаглал', color='#d4dae6', fontsize=13)
-ax.legend(facecolor='#0c1322', labelcolor='#d4dae6', framealpha=0.5)
-plt.tight_layout()
-plt.show()`,
-  },
-  {
-    label: 'Histogram',
+    label: '4. Pie chart',
     code: `import matplotlib.pyplot as plt
 
-vals = df['VALUE'].dropna()
-fig, ax = plt.subplots(figsize=(9, 5), facecolor='#0c1322')
-ax.set_facecolor('#0c1322')
-ax.hist(vals, bins=30, color='#00d68f', alpha=0.85, edgecolor='#070c18')
-ax.tick_params(colors='#8898b0')
-ax.spines[['top','right']].set_visible(False)
-ax.spines[['bottom','left']].set_color('#1a2d4a')
-ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x:,.0f}'))
-ax.set_title('Утгын хуваарилалт', color='#d4dae6', fontsize=13)
-ax.set_xlabel('Утга', color='#8898b0')
-ax.set_ylabel('Тоо', color='#8898b0')
-plt.tight_layout()
-plt.show()`,
-  },
-  {
-    label: 'Корреляц',
-    code: `import matplotlib.pyplot as plt
-import numpy as np
+skip = {'VALUE', 'Period', 'Он', 'Year'}
+cat_cols = [c for c in df.columns
+            if c not in skip and not c.endswith('_CODE') and df[c].dtype == 'object']
 
-num_cols = df.select_dtypes(include='number').columns.tolist()
-if len(num_cols) < 2:
-    print("Тоон багана хангалтгүй")
+if not cat_cols:
+    print("Бүлэглэх багана олдсонгүй")
 else:
-    corr = df[num_cols].corr()
+    grp = cat_cols[0]
+    agg = df.groupby(grp)['VALUE'].sum().nlargest(8)
+
+    colors = ['#00d68f','#5b9cf6','#f0b040','#f05252','#a78bfa','#34d399','#fb923c','#8898b0']
+
     fig, ax = plt.subplots(figsize=(8, 6), facecolor='#0c1322')
     ax.set_facecolor('#0c1322')
-    im = ax.imshow(corr.values, cmap='RdYlGn', vmin=-1, vmax=1)
-    plt.colorbar(im, ax=ax)
-    ax.set_xticks(range(len(num_cols)))
-    ax.set_yticks(range(len(num_cols)))
-    ax.set_xticklabels(num_cols, rotation=45, ha='right', color='#8898b0', fontsize=9)
-    ax.set_yticklabels(num_cols, color='#8898b0', fontsize=9)
-    for i in range(len(num_cols)):
-        for j in range(len(num_cols)):
-            ax.text(j, i, f'{corr.values[i,j]:.2f}', ha='center', va='center',
-                   color='white', fontsize=9, fontweight='bold')
-    ax.set_title('Корреляцийн матриц', color='#d4dae6', fontsize=13)
+    wedges, texts, autotexts = ax.pie(
+        agg.values, labels=[str(x)[:20] for x in agg.index],
+        autopct='%1.1f%%', colors=colors[:len(agg)],
+        textprops={'color': '#d4dae6', 'fontsize': 9},
+        pctdistance=0.8, labeldistance=1.12
+    )
+    for t in autotexts:
+        t.set_fontsize(8)
+        t.set_color('#0c1322')
+        t.set_fontweight('bold')
+    ax.set_title(f'{grp} хувь', color='#d4dae6', fontsize=14, fontweight='bold')
     plt.tight_layout()
     plt.show()`,
+  },
+  {
+    label: '5. Регресс + таамаглал',
+    code: `import matplotlib.pyplot as plt
+import numpy as np
+
+period_col = None
+for c in df.columns:
+    if c in ('Он', 'Period', 'Year', 'Үе'):
+        period_col = c
+        break
+
+if period_col is None:
+    print("Он/Period багана олдсонгүй")
+else:
+    agg = df.groupby(period_col)['VALUE'].sum().reset_index()
+    agg[period_col] = pd.to_numeric(agg[period_col], errors='coerce')
+    agg = agg.dropna().sort_values(period_col)
+
+    x = agg[period_col].values
+    y = agg['VALUE'].values
+
+    coef = np.polyfit(x, y, 1)
+    poly = np.poly1d(coef)
+    future_x = np.arange(x.max()+1, x.max()+6)
+    future_y = poly(future_x)
+
+    print("=== Шугаман регресс ===")
+    print(f"  Жилийн өсөлт: {coef[0]:+,.0f}")
+    print(f"\\n=== 5 жилийн таамаглал ===")
+    for yr, val in zip(future_x, future_y):
+        chg = ((val - y[-1]) / y[-1]) * 100
+        print(f"  {int(yr)}: {val:>12,.0f}  ({chg:+.1f}%)")
+
+    fig, ax = plt.subplots(figsize=(10, 5), facecolor='#0c1322')
+    ax.set_facecolor('#0c1322')
+    ax.plot(x, y, color='#00d68f', linewidth=2.5, marker='o', markersize=5, label='Бодит', zorder=3)
+    ax.plot(x, poly(x), color='#5b9cf6', linewidth=1.5, linestyle='--', alpha=0.7, label='Тренд')
+    ax.scatter(future_x, future_y, color='#a78bfa', s=70, zorder=5, label='Таамаглал', edgecolors='white', linewidth=0.5)
+    ax.fill_between(future_x, future_y*0.9, future_y*1.1, alpha=0.1, color='#a78bfa')
+    ax.tick_params(colors='#8898b0')
+    ax.spines[['top','right']].set_visible(False)
+    ax.spines[['bottom','left']].set_color('#1a2d4a')
+    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x:,.0f}'))
+    ax.set_title('Тренд + Таамаглал (5 жил)', color='#d4dae6', fontsize=14, fontweight='bold')
+    ax.legend(facecolor='#0c1322', labelcolor='#d4dae6', framealpha=0.5, fontsize=9)
+    plt.tight_layout()
+    plt.show()`,
+  },
+  {
+    label: '6. Хүснэгтэн дүгнэлт',
+    code: `# Нарийвчилсан статистик дүгнэлт
+print("=" * 60)
+print("  СТАТИСТИК ДҮГНЭЛТ")
+print("=" * 60)
+
+if 'VALUE' in df.columns:
+    vals = df['VALUE'].dropna()
+    print(f"\\n  Тоо:          {len(vals):>12,}")
+    print(f"  Дундаж:       {vals.mean():>12,.2f}")
+    print(f"  Медиан:       {vals.median():>12,.2f}")
+    print(f"  Стандарт хазайлт: {vals.std():>12,.2f}")
+    print(f"  Хамгийн бага: {vals.min():>12,.2f}")
+    print(f"  25-р хувь:    {vals.quantile(0.25):>12,.2f}")
+    print(f"  75-р хувь:    {vals.quantile(0.75):>12,.2f}")
+    print(f"  Хамгийн их:   {vals.max():>12,.2f}")
+
+# Бүлэг тус бүрийн дүгнэлт
+skip = {'VALUE', 'Period', 'Он', 'Year'}
+cat_cols = [c for c in df.columns
+            if c not in skip and not c.endswith('_CODE') and df[c].dtype == 'object']
+
+for col in cat_cols[:2]:
+    print(f"\\n--- {col} ---")
+    grp = df.groupby(col)['VALUE'].agg(['sum','mean','count'])
+    grp = grp.sort_values('sum', ascending=False).head(10)
+    grp['sum'] = grp['sum'].apply(lambda x: f'{x:,.0f}')
+    grp['mean'] = grp['mean'].apply(lambda x: f'{x:,.1f}')
+    print(grp.to_string())`,
   },
 ];
 
@@ -216,14 +267,18 @@ window.addEventListener('message', async (ev) => {
       if (ev.data.data && ev.data.data.length > 0) df_json = ev.data.data;
       const setup = df_json ? \`
 import pandas as pd, json, io, base64, sys
-df = pd.DataFrame(json.loads('\${JSON.stringify(df_json).replace(/\\\\/g,'\\\\\\\\').replace(/'/g,"\\\\'")}'))
+from js import document
+
+_df_raw = json.loads('\${JSON.stringify(df_json).replace(/\\\\/g,'\\\\\\\\').replace(/'/g,"\\\\'")}')
+df = pd.DataFrame(_df_raw)
 for c in df.columns:
     try: df[c] = pd.to_numeric(df[c])
     except: pass
+
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-_old_show = plt.show
+
 def _new_show(*a,**k):
     buf = io.BytesIO()
     plt.savefig(buf, format='png', dpi=120, bbox_inches='tight', facecolor=plt.gcf().get_facecolor())
@@ -238,13 +293,13 @@ plt.show = _new_show
 
 class _Capture:
     def write(self, t):
-        if t.strip():
+        if t and t.strip():
             el = document.createElement('span')
-            el.textContent = t + '\\n'
+            el.textContent = str(t) + '\\n'
             document.getElementById('out').appendChild(el)
     def flush(self): pass
 sys.stdout = _Capture()
-sys.stderr = type('E',(object,),{'write':lambda s,t: log(t,'err'),'flush':lambda s:None})()
+sys.stderr = _Capture()
 \` : '';
       await pyodide.runPythonAsync(setup + '\\n' + ev.data.code);
       parent.postMessage({type:'status',status:'ready',msg:'Дууслаа'},'*');
@@ -295,6 +350,10 @@ export default function RMode({ initialData }: RModeProps) {
 
   const runCode = useCallback(() => {
     if (status !== 'ready') return;
+    if (rows.length === 0) {
+      alert('Эхлээд баруун талаас өгөгдөл ачаална уу! Хүснэгт хайгаад "Татах" дарна.');
+      return;
+    }
     iframeRef.current?.contentWindow?.postMessage({ type: 'run', code, data: rows }, '*');
   }, [code, rows, status]);
 
