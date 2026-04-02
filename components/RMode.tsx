@@ -295,7 +295,7 @@ class _Capture:
     def write(self, t):
         if t and t.strip():
             el = document.createElement('span')
-            el.textContent = str(t) + '\\n'
+            el.textContent = str(t) + chr(10)
             document.getElementById('out').appendChild(el)
     def flush(self): pass
 sys.stdout = _Capture()
