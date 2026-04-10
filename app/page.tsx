@@ -51,6 +51,7 @@ function AppInner() {
             guidedTable={guided.guidedTable}
             guidedDims={guided.guidedDims}
             guidedLoading={guided.guidedLoading}
+            guidedError={guided.guidedError}
             loadGuidedTable={guided.loadGuidedTable}
             onEditInSQL={(sql) => { engine.setSql(sql); setMode('sql'); }}
           />

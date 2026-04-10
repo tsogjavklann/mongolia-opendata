@@ -57,8 +57,8 @@ export function resolveAliases(sql: string): string {
 
 export const DEFAULT_ALIASES: TableAlias[] = [
   { alias: 'population',   id: 'DT_NSO_0300_001V3', label: 'Хүн амын тоо',      category: 'Хүн ам, өрх',      path: 'Population, household/1_Population, household/DT_NSO_0300_001V3.px' },
-  { alias: 'gdp',          id: 'DT_NSO_0500_002V1', label: 'ДНБ (салбараар)',   category: 'Эдийн засаг',      path: 'National accounts/1_National accounts/DT_NSO_0500_002V1.px' },
-  { alias: 'inflation',    id: 'DT_NSO_2400_024V1', label: 'Инфляци (ХҮИ)',     category: 'Эдийн засаг',      path: 'Economy, environment/1_Economy, environment/DT_NSO_2400_024V1.px' },
-  { alias: 'unemployment', id: 'DT_NSO_0400_020V2', label: 'Ажилгүйдэл',       category: 'Хөдөлмөр, бизнес', path: 'Regional development/Labour and business/DT_NSO_0400_020V2_10.px' },
-  { alias: 'livestock',    id: 'DT_NSO_0800_001V1', label: 'Малын тоо толгой', category: 'Хүн ам, өрх',      path: 'Agriculture/1_Agriculture/DT_NSO_0800_001V1.px' },
+  { alias: 'gdp',          id: 'DT_NSO_0500_002V1', label: 'ДНБ (салбараар)',   category: 'Эдийн засаг',      path: 'Economy, environment/National Accounts/DT_NSO_0500_002V1.px' },
+  { alias: 'inflation',    id: 'DT_NSO_0600_013V2', label: 'Инфляци (ХҮИ)',     category: 'Эдийн засаг',      path: 'Regional development/Price/DT_NSO_0600_013V2.px' },
+  { alias: 'unemployment', id: 'DT_NSO_0400_020V2_10', label: 'Ажилгүйдэл',    category: 'Хөдөлмөр, бизнес', path: 'Regional development/Labour and business/DT_NSO_0400_020V2_10.px' },
+  { alias: 'livestock',    id: 'DT_NSO_1001_109V1', label: 'Малын тоо толгой', category: 'Мал аж ахуй',     path: 'Regional development/Livestock/DT_NSO_1001_109V1.px' },
 ];

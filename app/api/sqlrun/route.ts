@@ -12,10 +12,10 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveAliases } from '@/lib/tableAliases';
-import { fetchData, fetchTableMeta } from '@/lib/apiClient';
+import { fetchData, fetchTableMeta, type PxFilter } from '@/lib/apiClient';
 import { normalizeResponse } from '@/lib/transform';
 import { runSQL, buildSchemaInfo, type ColumnInfo } from '@/lib/duckdb-engine';
-import { ENGLISH_ALIASES } from '@/lib/dimensionMap';
+import { ENGLISH_ALIASES, resolveEnglishDimension } from '@/lib/dimensionMap';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -100,6 +100,106 @@ async function fetchTableDims(path: string): Promise<DimMeta[]> {
   }
 }
 
+/** SQL WHERE-аас шүүлт задлах (table alias-г арилгана: a.Он → Он) */
+function extractWhereFilters(sql: string): { dimName: string; values: string[] }[] {
+  const whereMatch = sql.match(/\bWHERE\s+([\s\S]+?)(?:\bLIMIT\b|\bGROUP\b|\bORDER\b|\bHAVING\b|;|$)/i);
+  if (!whereMatch) return [];
+  const w = whereMatch[1];
+  const filters: { dimName: string; values: string[] }[] = [];
+
+  // Strip alias prefix: a.Он → Он, a["Аймаг, нийслэл"] → Аймаг, нийслэл
+  function strip(name: string): string {
+    return name
+      .replace(/^[a-zA-Z_]\w*\.\s*/, '')
+      .replace(/^\[["']|["']\]$/g, '')
+      .replace(/^["'`]|["'`]$/g, '')
+      .trim();
+  }
+
+  // BETWEEN X AND Y
+  const betweenRx = /([\w.[\]"'`]+)\s+BETWEEN\s+['"]?(\w+)['"]?\s+AND\s+['"]?(\w+)['"]?/gi;
+  let m;
+  while ((m = betweenRx.exec(w)) !== null) {
+    const dim = strip(m[1]);
+    const from = parseInt(m[2]), to = parseInt(m[3]);
+    if (!isNaN(from) && !isNaN(to) && Math.abs(to - from) <= 200) {
+      const vals: string[] = [];
+      for (let i = Math.min(from, to); i <= Math.max(from, to); i++) vals.push(String(i));
+      filters.push({ dimName: dim, values: vals });
+    }
+  }
+
+  // = 'value'
+  const eqRx = /([\w.[\]"'`]+)\s*=\s*['"]([^'"]+)['"]/gi;
+  while ((m = eqRx.exec(w)) !== null) {
+    const dim = strip(m[1]);
+    if (/^(SELECT|WHERE|LIMIT|ORDER|GROUP|AND|OR|ON|VALUE)$/i.test(dim)) continue;
+    filters.push({ dimName: dim, values: [m[2]] });
+  }
+
+  // IN (...)
+  const inRx = /([\w.[\]"'`]+)\s+IN\s*\(([^)]+)\)/gi;
+  while ((m = inRx.exec(w)) !== null) {
+    const dim = strip(m[1]);
+    if (/^(SELECT|WHERE|LIMIT)$/i.test(dim)) continue;
+    const vals = m[2].split(',').map(v => v.trim().replace(/^['"`]|['"`]$/g, '').trim()).filter(Boolean);
+    filters.push({ dimName: dim, values: vals });
+  }
+
+  return filters;
+}
+
+/** WHERE шүүлтийг хүснэгтийн dimension-тай тулгах → PxFilter[] */
+function matchFiltersToTable(
+  whereFilters: { dimName: string; values: string[] }[],
+  dims: DimMeta[]
+): PxFilter[] {
+  const pxFilters: PxFilter[] = [];
+  const dimLabels = dims.map(d => d.label);
+
+  for (const wf of whereFilters) {
+    // Dimension-г label, code, english alias-аар хайх
+    const dim = dims.find(d =>
+      d.label === wf.dimName || d.code === wf.dimName || d.englishAlias === wf.dimName
+    ) ?? dims.find(d => resolveEnglishDimension(wf.dimName, dimLabels) === d.label);
+    if (!dim) continue;
+
+    // Label → code resolve
+    const codes: string[] = [];
+    for (const val of wf.values) {
+      const byCode = dim.values.find(v => v.code === val);
+      if (byCode) { codes.push(byCode.code); continue; }
+      const byLabel = dim.values.find(v => v.label.toLowerCase() === val.toLowerCase());
+      if (byLabel) { codes.push(byLabel.code); continue; }
+      codes.push(val);
+    }
+    if (codes.length > 0) {
+      pxFilters.push({ code: dim.code, values: codes });
+    }
+  }
+
+  return pxFilters;
+}
+
+/** "Он" dimension байвал сүүлийн 15 жилээр хязгаарлах (413 сэргийлэх) */
+function addDefaultYearLimit(dims: DimMeta[], existing: PxFilter[]): PxFilter[] {
+  const yearDim = dims.find(d =>
+    d.label === 'Он' || d.label === 'Жил' || d.code === 'Он' ||
+    d.englishAlias === 'Year'
+  );
+  if (!yearDim) return existing;
+  if (existing.find(f => f.code === yearDim.code)) return existing;
+
+  const numericYears = yearDim.values
+    .map(v => ({ code: v.code, num: parseInt(v.code) }))
+    .filter(v => !isNaN(v.num))
+    .sort((a, b) => b.num - a.num);
+  const recent = numericYears.slice(0, 15).map(v => v.code);
+  if (recent.length === 0) return existing;
+
+  return [...existing, { code: yearDim.code, values: recent }];
+}
+
 export async function POST(req: NextRequest) {
   let body: { sql: string; useDuckDB?: boolean };
   try { body = await req.json(); }
@@ -134,12 +234,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: '5-аас олон хүснэгт JOIN хийх боломжгүй', errorType: 'PARSE', suggestion: 'Хүснэгтийн тоог багасгана уу' }, { status: 400 });
   }
 
-  // 2. Бүх хүснэгтийг зэрэг татах (parallel)
+  // 2. WHERE шүүлтийг задлах
+  const whereFilters = extractWhereFilters(resolvedSql);
+
+  // 3. Бүх хүснэгтийг зэрэг татах (WHERE шүүлтийг API руу дамжуулна)
   const startFetch = Date.now();
   const tableResults = await Promise.allSettled(
     tablePaths.map(async ({ path }) => {
       const dims = await fetchTableDims(path);
-      const raw = await fetchData({ tblId: path, filters: [] });
+      // WHERE-аас тохирох шүүлт олох + жилийн автомат хязгаар
+      let filters = matchFiltersToTable(whereFilters, dims);
+      filters = addDefaultYearLimit(dims, filters);
+      const raw = await fetchData({ tblId: path, filters });
       const rows = normalizeResponse(raw);
       return { path, dims, rows };
     })

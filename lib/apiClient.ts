@@ -79,8 +79,8 @@ export async function fetchTableMeta(path: string): Promise<unknown> {
   if (cached) return cached;
 
   return dedupe(cacheKey, async () => {
-    const cleanPath = path.replace(/\.px$/i, '');
-    const url = BASE + '/' + encodePath(cleanPath);
+    const fullPath = path.endsWith('.px') ? path : path + '.px';
+    const url = BASE + '/' + encodePath(fullPath);
     const res = await fetchWithRetry(url, {
       headers: { Accept: 'application/json' }
     });
