@@ -14,18 +14,70 @@ const SchemaSidebar = dynamic(() => import('@/components/SchemaSidebar'), { ssr:
 const SQLEditor = dynamic(() => import('@/components/SQLEditor'), { ssr: false });
 const AliasTable = dynamic(() => import('@/components/AliasTable'), { ssr: false });
 
-const SQL_EXAMPLES = [
-  { label: 'Хүн ам', sql: `SELECT *\nFROM "Population, household/1_Population, household/DT_NSO_0300_001V3.px"\nWHERE Gender IN ('0','1','2')\nLIMIT 500;` },
-  { label: 'ДНБ', sql: `SELECT *\nFROM "Economy, environment/National Accounts/DT_NSO_0500_002V1.px"\nLIMIT 300;` },
-  { label: 'JOIN: ДНБ + Хүн ам', sql: `SELECT a.Он,\n       a.VALUE AS ДНБ,\n       b.VALUE AS Хүн_ам,\n       ROUND(a.VALUE / NULLIF(b.VALUE, 0), 2) AS Нэг_хүнд_ДНБ\nFROM "gdp" a\nJOIN "population" b ON a.Он = b.Он\nWHERE a.Он BETWEEN '2010' AND '2024'\nORDER BY a.Он;` },
-  { label: 'JOIN: Ажилгүйдэл + Инфляци', sql: `SELECT a.Он,\n       a.VALUE AS Ажилгүйдэл,\n       b.VALUE AS Инфляци\nFROM "unemployment" a\nJOIN "inflation" b ON a.Он = b.Он\nORDER BY a.Он;` },
+const SQL_EXAMPLES_BASIC = [
+  { label: 'Хүн ам', sql: `SELECT *\nFROM "Population, household/1_Population, household/DT_NSO_0300_001V3.px"\nWHERE Хүйс IN ('0','1','2')\nLIMIT 500;` },
+  { label: 'ДНБ салбараар', sql: `SELECT *\nFROM "Economy, environment/National Accounts/DT_NSO_0500_002V1.px"\nWHERE ОН BETWEEN '2015' AND '2025'\nLIMIT 300;` },
+  { label: 'Малын тоо', sql: `SELECT *\nFROM "Regional development/Livestock/DT_NSO_1001_109V1.px"\nWHERE Он BETWEEN '2015' AND '2024'\nLIMIT 500;` },
+];
+
+const SQL_EXAMPLES_JOIN = [
+  {
+    label: 'Нэг хүнд ДНБ',
+    desc: 'ДНБ / Хүн ам',
+    sql: `SELECT a.ОН AS Жил,\n       a.VALUE AS ДНБ_сая_төг,\n       b.VALUE AS Хүн_ам,\n       ROUND(a.VALUE / NULLIF(b.VALUE, 0), 2) AS Нэг_хүнд_ДНБ\nFROM "gdp" a\nJOIN "population" b ON a.ОН = b.Он\nWHERE a.ОН BETWEEN '2010' AND '2025'\nORDER BY a.ОН;`,
+  },
+  {
+    label: 'Ажилгүйдэл vs Инфляци',
+    desc: 'Филлипсийн муруй',
+    sql: `SELECT a.Он,\n       a.VALUE AS Ажилгүйдэл,\n       b.VALUE AS Инфляци,\n       ROUND(b.VALUE - a.VALUE, 2) AS Зөрүү\nFROM "unemployment" a\nJOIN "inflation" b ON a.Он = b.Он\nORDER BY a.Он;`,
+  },
+  {
+    label: 'Мал / Малчин өрх',
+    desc: 'Нэг өрхөд ногдох мал',
+    sql: `SELECT a.Он,\n       a.VALUE AS Нийт_мал,\n       b.VALUE AS Малчин_өрх,\n       ROUND(a.VALUE / NULLIF(b.VALUE, 0), 0) AS Өрхөд_ногдох_мал\nFROM "Regional development/Livestock/DT_NSO_1001_109V1.px" a\nJOIN "Regional development/Livestock/DT_NSO_1001_120V2.px" b ON a.Он = b.Он\nWHERE a.Он BETWEEN '2010' AND '2024'\nORDER BY a.Он;`,
+  },
+];
+
+const SQL_EXAMPLES_ADVANCED = [
+  {
+    label: 'ДНБ өсөлт %',
+    desc: 'LAG ашиглан жилийн өсөлт',
+    sql: `SELECT ОН AS Жил,\n       VALUE AS ДНБ,\n       LAG(VALUE) OVER (ORDER BY ОН) AS Өмнөх_жил,\n       ROUND((VALUE - LAG(VALUE) OVER (ORDER BY ОН)) * 100.0\n             / NULLIF(LAG(VALUE) OVER (ORDER BY ОН), 0), 1) AS Өсөлт_хувь\nFROM "Economy, environment/National Accounts/DT_NSO_0500_002V1.px"\nWHERE ОН BETWEEN '2005' AND '2025'\nORDER BY ОН;`,
+  },
+  {
+    label: 'Цалингийн ялгаа',
+    desc: 'Эрэгтэй vs Эмэгтэй',
+    sql: `SELECT a.Он,\n       a.VALUE AS Эрэгтэй_цалин,\n       b.VALUE AS Эмэгтэй_цалин,\n       ROUND((a.VALUE - b.VALUE) * 100.0\n             / NULLIF(a.VALUE, 0), 1) AS Ялгаа_хувь\nFROM "Labour, business/Wages/MONTHLY AVERAGE NOMINAL WAGES, by occupation and gender/DT_NSO_0400_025V1.px" a\nJOIN "Labour, business/Wages/MONTHLY AVERAGE NOMINAL WAGES, by occupation and gender/DT_NSO_0400_025V1.px" b\n  ON a.Он = b.Он\nWHERE a.Хүйс = 'Эрэгтэй' AND b.Хүйс = 'Эмэгтэй'\nORDER BY a.Он;`,
+  },
+  {
+    label: 'Экспорт vs Импорт',
+    desc: 'Гадаад худалдааны тэнцэл',
+    sql: `SELECT a.Он AS Жил,\n       a.VALUE AS Экспорт,\n       b.VALUE AS Импорт,\n       ROUND(a.VALUE - b.VALUE, 1) AS Тэнцэл,\n       CASE WHEN a.VALUE > b.VALUE THEN 'Ашигтай' ELSE 'Алдагдалтай' END AS Төлөв\nFROM "Economy, environment/Foreign Trade/DT_NSO_1400_001V1_year.px" a\nJOIN "Economy, environment/Foreign Trade/DT_NSO_1400_001V1_year.px" b ON a.Он = b.Он\nWHERE a."Гадаад худалдааны үндсэн үзүүлэлт" = 'Экспорт'\n  AND b."Гадаад худалдааны үндсэн үзүүлэлт" = 'Импорт'\nORDER BY a.Он;`,
+  },
+  {
+    label: 'ДНБ салбарын бүтэц',
+    desc: 'Хувийн жин тооцох',
+    sql: `SELECT "Эдийн засгийн үйл ажиллагааны салбарын ангилал" AS Салбар,\n       VALUE AS ДНБ,\n       ROUND(VALUE * 100.0 / SUM(VALUE) OVER (), 2) AS Хувь\nFROM "Economy, environment/National Accounts/DT_NSO_0500_002V1.px"\nWHERE ОН = '2024'\n  AND "Эдийн засгийн үйл ажиллагааны салбарын ангилал" != 'Бүгд'\nORDER BY VALUE DESC;`,
+  },
+  {
+    label: 'Топ 10 жуулчин улс',
+    desc: '2024 онд хамгийн их',
+    sql: `SELECT "Улсын нэр" AS Улс,\n       SUM(VALUE) AS Нийт_жуулчид,\n       RANK() OVER (ORDER BY SUM(VALUE) DESC) AS Байр\nFROM "Industry, service/Tourism/NUMBER OF INBOUND TOURISTS by country/DT_NSO_1800_003V202.px"\nWHERE Сар LIKE '2024%'\n  AND "Улсын нэр" != 'БҮГД'\nGROUP BY "Улсын нэр"\nORDER BY Нийт_жуулчид DESC\nLIMIT 10;`,
+  },
+  {
+    label: 'Хүн ам аймгаар + Хөрөнгө оруулалт',
+    desc: 'Нэг хүнд ногдох хөрөнгө оруулалт',
+    sql: `SELECT a.Бүс AS Аймаг,\n       a.VALUE AS Хүн_ам,\n       b.VALUE AS Хөрөнгө_оруулалт,\n       ROUND(b.VALUE / NULLIF(a.VALUE, 0), 2) AS Нэг_хүнд_хөрөнгө\nFROM "Regional development/Population and household/DT_NSO_0300_002V4.px" a\nJOIN "Regional development/National accounts/DT_NSO_0901_004V1.px" b ON a.Бүс = b.Бүс AND a.Он = b.Он\nWHERE a.Он = '2024'\nORDER BY Нэг_хүнд_хөрөнгө DESC\nLIMIT 25;`,
+  },
 ];
 
 const SQL_TEMPLATES = [
-  { label: '5 жил', snippet: 'Year BETWEEN 2020 AND 2024' },
-  { label: 'Хүйсээр', snippet: `Gender IN ('1','2')` },
-  { label: 'Нийт', snippet: `Gender IN ('0')` },
-  { label: 'JOIN загвар', snippet: `JOIN "table" b ON a.Он = b.Он` },
+  { label: '5 жил', snippet: `Он BETWEEN '2020' AND '2024'` },
+  { label: 'Хүйсээр', snippet: `Хүйс IN ('Эрэгтэй','Эмэгтэй')` },
+  { label: 'Нийт', snippet: `Хүйс = 'Нийт дүн'` },
+  { label: 'JOIN', snippet: `JOIN "table" b ON a.Он = b.Он` },
+  { label: 'LAG (өөрчлөлт)', snippet: `LAG(VALUE) OVER (ORDER BY Он)` },
+  { label: 'RANK', snippet: `RANK() OVER (ORDER BY VALUE DESC)` },
 ];
 
 interface Props {
@@ -88,14 +140,29 @@ export default function SQLMode({
           }} compact />
 
           {/* Examples + templates */}
-          <div className="flex gap-1.5 flex-wrap my-2.5">
-            <span className="text-label text-ink-700 self-center font-semibold">Жишээ:</span>
-            {SQL_EXAMPLES.map(ex => (
+          <div className="flex gap-1.5 flex-wrap my-2.5 items-center">
+            <span className="text-label text-ink-700 self-center font-semibold">Энгийн:</span>
+            {SQL_EXAMPLES_BASIC.map(ex => (
               <button key={ex.label} onClick={() => setSql(ex.sql)} className="btn-ghost text-accent2">
                 {ex.label}
               </button>
             ))}
-            <span className="text-ink-700 self-center">|</span>
+            <span className="text-ink-800 self-center">|</span>
+            <span className="text-label text-ink-700 self-center font-semibold">JOIN:</span>
+            {SQL_EXAMPLES_JOIN.map(ex => (
+              <button key={ex.label} onClick={() => setSql(ex.sql)} className="btn-ghost text-accent" title={ex.desc}>
+                {ex.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-1.5 flex-wrap mb-2 items-center">
+            <span className="text-label text-ink-700 self-center font-semibold">Дэвшилтэт:</span>
+            {SQL_EXAMPLES_ADVANCED.map(ex => (
+              <button key={ex.label} onClick={() => setSql(ex.sql)} className="btn-ghost text-blue-400" title={ex.desc}>
+                {ex.label}
+              </button>
+            ))}
+            <span className="text-ink-800 self-center">|</span>
             <span className="text-label text-ink-700 self-center font-semibold">Загвар:</span>
             {SQL_TEMPLATES.map(t => (
               <button key={t.label} onClick={() => insertSnippet(t.snippet)} className="btn-ghost">
