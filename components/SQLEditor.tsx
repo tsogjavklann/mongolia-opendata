@@ -83,6 +83,16 @@ const SNIPPETS = [
     label: 'Percentage share',
     body: 'SELECT\n  $1,\n  VALUE,\n  ROUND(VALUE * 100.0 / SUM(VALUE) OVER (), 2) as хувь\nFROM "$2";',
   },
+  {
+    trigger: 'join',
+    label: 'JOIN хоёр хүснэгт',
+    body: 'SELECT a.Он,\n  a.VALUE AS утга_1,\n  b.VALUE AS утга_2\nFROM "$1" a\nJOIN "$2" b ON a.Он = b.Он\nORDER BY a.Он;',
+  },
+  {
+    trigger: 'ratio',
+    label: 'JOIN харьцаа тооцох',
+    body: 'SELECT a.Он,\n  a.VALUE AS тоологч,\n  b.VALUE AS хуваагч,\n  ROUND(a.VALUE / NULLIF(b.VALUE, 0), 2) AS харьцаа\nFROM "$1" a\nJOIN "$2" b ON a.Он = b.Он\nWHERE a.Он BETWEEN \'2015\' AND \'2024\'\nORDER BY a.Он;',
+  },
 ];
 
 interface SuggestionItem {

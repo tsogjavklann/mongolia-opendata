@@ -15,14 +15,17 @@ const SQLEditor = dynamic(() => import('@/components/SQLEditor'), { ssr: false }
 const AliasTable = dynamic(() => import('@/components/AliasTable'), { ssr: false });
 
 const SQL_EXAMPLES = [
-  { label: 'Хүн ам хүйсээр', sql: `SELECT *\nFROM "Population, household/1_Population, household/DT_NSO_0300_001V3.px"\nWHERE Gender IN ('0','1','2')\nLIMIT 500;` },
-  { label: 'ДНБ', sql: `SELECT *\nFROM "National accounts/1_National accounts/DT_NSO_0500_002V1.px"\nLIMIT 300;` },
+  { label: 'Хүн ам', sql: `SELECT *\nFROM "Population, household/1_Population, household/DT_NSO_0300_001V3.px"\nWHERE Gender IN ('0','1','2')\nLIMIT 500;` },
+  { label: 'ДНБ', sql: `SELECT *\nFROM "Economy, environment/National Accounts/DT_NSO_0500_002V1.px"\nLIMIT 300;` },
+  { label: 'JOIN: ДНБ + Хүн ам', sql: `SELECT a.Он,\n       a.VALUE AS ДНБ,\n       b.VALUE AS Хүн_ам,\n       ROUND(a.VALUE / NULLIF(b.VALUE, 0), 2) AS Нэг_хүнд_ДНБ\nFROM "gdp" a\nJOIN "population" b ON a.Он = b.Он\nWHERE a.Он BETWEEN '2010' AND '2024'\nORDER BY a.Он;` },
+  { label: 'JOIN: Ажилгүйдэл + Инфляци', sql: `SELECT a.Он,\n       a.VALUE AS Ажилгүйдэл,\n       b.VALUE AS Инфляци\nFROM "unemployment" a\nJOIN "inflation" b ON a.Он = b.Он\nORDER BY a.Он;` },
 ];
 
 const SQL_TEMPLATES = [
   { label: '5 жил', snippet: 'Year BETWEEN 2020 AND 2024' },
   { label: 'Хүйсээр', snippet: `Gender IN ('1','2')` },
   { label: 'Нийт', snippet: `Gender IN ('0')` },
+  { label: 'JOIN загвар', snippet: `JOIN "table" b ON a.Он = b.Он` },
 ];
 
 interface Props {
@@ -267,7 +270,7 @@ export default function SQLMode({
           {/* Syntax reference */}
           <div className="card p-3">
             <div className="label-upper mb-2">Синтакс</div>
-            <pre className="font-mono text-[11px] text-ink-600 leading-relaxed m-0 whitespace-pre-wrap">{`SELECT *\nFROM "path/table.px"\nWHERE Year IN ('2020','2021')\n  AND Gender IN ('1','2')\n  AND Year BETWEEN 2018 AND 2023\nLIMIT 1000;`}</pre>
+            <pre className="font-mono text-[11px] text-ink-600 leading-relaxed m-0 whitespace-pre-wrap">{`SELECT a.Он, a.VALUE, b.VALUE\nFROM "table1" a\nJOIN "table2" b ON a.Он = b.Он\nWHERE a.Он BETWEEN 2018 AND 2024\n  AND Gender IN ('1','2')\nORDER BY a.Он;`}</pre>
           </div>
         </div>
       )}
