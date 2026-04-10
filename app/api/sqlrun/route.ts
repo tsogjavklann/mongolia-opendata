@@ -107,17 +107,21 @@ function extractWhereFilters(sql: string): { dimName: string; values: string[] }
   const w = whereMatch[1];
   const filters: { dimName: string; values: string[] }[] = [];
 
-  // Strip alias prefix: a.Он → Он, a["Аймаг, нийслэл"] → Аймаг, нийслэл
+  // Strip alias prefix: a.Он → Он, a."Гадаад худалдаа" → Гадаад худалдаа
   function strip(name: string): string {
     return name
-      .replace(/^[a-zA-Z_]\w*\.\s*/, '')
-      .replace(/^\[["']|["']\]$/g, '')
-      .replace(/^["'`]|["'`]$/g, '')
+      .replace(/^[a-zA-Z_]\w*\.\s*/, '')       // a. prefix
+      .replace(/^\[["']|["']\]$/g, '')          // ["..."] brackets
+      .replace(/^["'`]|["'`]$/g, '')            // quotes
       .trim();
   }
 
+  // Column нэр: a.Он, a."Гадаад худалдаа", a[Он] гэсэн хэлбэрүүд
+  // Хашилттай нэр: a."..." эсвэл энгийн: a.Он
+  const COL = `(?:[a-zA-Z_]\\w*\\.\\s*)?(?:"[^"]+"|'[^']+'|[\\w]+)`;
+
   // BETWEEN X AND Y
-  const betweenRx = /([\w.[\]"'`]+)\s+BETWEEN\s+['"]?(\w+)['"]?\s+AND\s+['"]?(\w+)['"]?/gi;
+  const betweenRx = new RegExp(`(${COL})\\s+BETWEEN\\s+['"]?(\\w+)['"]?\\s+AND\\s+['"]?(\\w+)['"]?`, 'gi');
   let m;
   while ((m = betweenRx.exec(w)) !== null) {
     const dim = strip(m[1]);
@@ -130,7 +134,7 @@ function extractWhereFilters(sql: string): { dimName: string; values: string[] }
   }
 
   // = 'value'
-  const eqRx = /([\w.[\]"'`]+)\s*=\s*['"]([^'"]+)['"]/gi;
+  const eqRx = new RegExp(`(${COL})\\s*=\\s*['"]([^'"]+)['"]`, 'gi');
   while ((m = eqRx.exec(w)) !== null) {
     const dim = strip(m[1]);
     if (/^(SELECT|WHERE|LIMIT|ORDER|GROUP|AND|OR|ON|VALUE)$/i.test(dim)) continue;
@@ -138,7 +142,7 @@ function extractWhereFilters(sql: string): { dimName: string; values: string[] }
   }
 
   // IN (...)
-  const inRx = /([\w.[\]"'`]+)\s+IN\s*\(([^)]+)\)/gi;
+  const inRx = new RegExp(`(${COL})\\s+IN\\s*\\(([^)]+)\\)`, 'gi');
   while ((m = inRx.exec(w)) !== null) {
     const dim = strip(m[1]);
     if (/^(SELECT|WHERE|LIMIT)$/i.test(dim)) continue;
@@ -154,31 +158,31 @@ function matchFiltersToTable(
   whereFilters: { dimName: string; values: string[] }[],
   dims: DimMeta[]
 ): PxFilter[] {
-  const pxFilters: PxFilter[] = [];
+  // Ижил dimension code-д values нэгтгэнэ (API давхардсан code хүлээхгүй)
+  const merged = new Map<string, Set<string>>();
   const dimLabels = dims.map(d => d.label);
 
   for (const wf of whereFilters) {
-    // Dimension-г label, code, english alias-аар хайх
     const dim = dims.find(d =>
       d.label === wf.dimName || d.code === wf.dimName || d.englishAlias === wf.dimName
     ) ?? dims.find(d => resolveEnglishDimension(wf.dimName, dimLabels) === d.label);
     if (!dim) continue;
 
-    // Label → code resolve
-    const codes: string[] = [];
+    if (!merged.has(dim.code)) merged.set(dim.code, new Set());
+    const codeSet = merged.get(dim.code)!;
+
     for (const val of wf.values) {
       const byCode = dim.values.find(v => v.code === val);
-      if (byCode) { codes.push(byCode.code); continue; }
+      if (byCode) { codeSet.add(byCode.code); continue; }
       const byLabel = dim.values.find(v => v.label.toLowerCase() === val.toLowerCase());
-      if (byLabel) { codes.push(byLabel.code); continue; }
-      codes.push(val);
-    }
-    if (codes.length > 0) {
-      pxFilters.push({ code: dim.code, values: codes });
+      if (byLabel) { codeSet.add(byLabel.code); continue; }
+      codeSet.add(val);
     }
   }
 
-  return pxFilters;
+  return Array.from(merged.entries())
+    .filter(([, s]) => s.size > 0)
+    .map(([code, s]) => ({ code, values: Array.from(s) }));
 }
 
 /** "Он" dimension байвал сүүлийн 15 жилээр хязгаарлах (413 сэргийлэх) */
@@ -190,11 +194,13 @@ function addDefaultYearLimit(dims: DimMeta[], existing: PxFilter[]): PxFilter[] 
   if (!yearDim) return existing;
   if (existing.find(f => f.code === yearDim.code)) return existing;
 
-  const numericYears = yearDim.values
-    .map(v => ({ code: v.code, num: parseInt(v.code) }))
-    .filter(v => !isNaN(v.num))
-    .sort((a, b) => b.num - a.num);
-  const recent = numericYears.slice(0, 15).map(v => v.code);
+  // Label-аас жилийг тодорхойлж, сүүлийн 15 жилийн code-г авна
+  // (code '0'='2025' эсвэл code '2025'='2025' аль ч хэлбэрт ажиллана)
+  const withYear = yearDim.values
+    .map(v => ({ code: v.code, year: parseInt(v.label) }))
+    .filter(v => !isNaN(v.year) && v.year >= 1900 && v.year <= 2100)
+    .sort((a, b) => b.year - a.year);
+  const recent = withYear.slice(0, 15).map(v => v.code);
   if (recent.length === 0) return existing;
 
   return [...existing, { code: yearDim.code, values: recent }];
