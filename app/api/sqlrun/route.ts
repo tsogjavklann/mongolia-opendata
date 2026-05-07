@@ -18,7 +18,8 @@ import { runSQL, buildSchemaInfo, type ColumnInfo } from '@/lib/duckdb-engine';
 import { ENGLISH_ALIASES, resolveEnglishDimension } from '@/lib/dimensionMap';
 
 export const runtime = 'nodejs';
-export const maxDuration = 120;
+// Hobby tier max 60s — DuckDB query timeout (lib/duckdb-engine) хязгаарлагдана.
+export const maxDuration = 60;
 
 // SQL-аас бүх "path/table.px" замуудыг гаргах
 function extractAllTablePaths(sql: string): { path: string; alias: string | null }[] {
