@@ -19,11 +19,12 @@ interface Props {
   history: HistoryEntry[];
   onHistorySelect: (h: HistoryEntry) => void;
   onExport: (() => void) | null;
+  onExportXLSX?: (() => void) | null;
   activeTable?: string;
   rowCount?: number;
 }
 
-export default function AppHeader({ mode, setMode, history, onHistorySelect, onExport, activeTable, rowCount }: Props) {
+export default function AppHeader({ mode, setMode, history, onHistorySelect, onExport, onExportXLSX, activeTable, rowCount }: Props) {
   const [shareCopied, setShareCopied] = useState(false);
   const [showHist, setShowHist] = useState(false);
   const histRef = useRef<HTMLDivElement>(null);
@@ -121,8 +122,15 @@ export default function AppHeader({ mode, setMode, history, onHistorySelect, onE
 
           {/* CSV Export */}
           {onExport && (
-            <button onClick={onExport} className="btn-ghost">
+            <button onClick={onExport} className="btn-ghost" title="CSV формат — Excel-д Mongolian char-аар нээх">
               <Download size={12} /> CSV
+            </button>
+          )}
+
+          {/* Excel (.xlsx) Export */}
+          {onExportXLSX && (
+            <button onClick={onExportXLSX} className="btn-ghost" title="Excel-ийн жинхэн .xlsx файл — шууд нээгдэнэ">
+              <Download size={12} /> Excel
             </button>
           )}
         </div>

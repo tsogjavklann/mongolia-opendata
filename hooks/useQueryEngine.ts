@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import { toCSV } from '@/lib/transform';
+import { downloadCSV, downloadXLSX } from '@/lib/exportFile';
 import type { QueryResult, HistoryEntry } from '@/lib/types';
 
 const LS_KEY = 'mn_sql_history';
@@ -72,14 +72,17 @@ export function useQueryEngine(initialSql: string) {
 
   const exportCSV = useCallback(() => {
     if (!result) return;
-    const blob = new Blob([toCSV(result.rows)], { type: 'text/csv;charset=utf-8' });
-    const tableName = (result.explain?.table ?? 'data').replace(/[^a-zA-Z0-9_\-]/g, '_').slice(0, 60);
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${tableName}_${Date.now()}.csv`; a.click();
+    downloadCSV(result.rows, result.explain?.table ?? 'data');
+  }, [result]);
+
+  const exportXLSX = useCallback(async () => {
+    if (!result) return;
+    await downloadXLSX(result.rows, result.explain?.table ?? 'data');
   }, [result]);
 
   return {
     sql, setSql, result, loading, error, setError,
     tab, setTab, history, useDuckDB, setUseDuckDB,
-    runSQL, exportCSV,
+    runSQL, exportCSV, exportXLSX,
   };
 }
