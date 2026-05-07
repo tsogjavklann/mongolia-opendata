@@ -19,6 +19,11 @@ build/
 .env.test.local
 .env.production.local
 
+# OAuth / API client secrets — НИКОГДА commit хийхгүй
+client_secret*.json
+*credentials*.json
+secret*.json
+
 # debug
 npm-debug.log*
 
