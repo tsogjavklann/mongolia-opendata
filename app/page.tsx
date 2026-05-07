@@ -42,6 +42,8 @@ function AppInner() {
         onHistorySelect={(h) => { engine.setSql(h.sql); setMode('sql'); }}
         onExport={engine.result ? engine.exportCSV : null}
         onExportXLSX={engine.result ? engine.exportXLSX : null}
+        currentSql={engine.sql}
+        onLoadSql={(sql) => { engine.setSql(sql); setMode('sql'); }}
         activeTable={engine.result?.explain?.table}
         rowCount={engine.result?.count}
       />
