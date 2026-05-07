@@ -53,8 +53,8 @@ function formatError(msg: string): string {
     return `Өгөгдлийн төрөл таарахгүй — CAST() ашиглана уу`;
   if (msg.includes('division by zero'))
     return `Тэгд хуваасан — NULLIF(denominator, 0) ашиглана уу`;
-  if (msg.includes('timeout') || msg.includes('90 секунд'))
-    return `Query хэт удсан (90 сек) — LIMIT эсвэл WHERE шүүлт нэмнэ үү`;
+  if (msg.includes('timeout') || msg.includes('45 секунд') || msg.includes('90 секунд'))
+    return `Query хэт удсан (45 сек) — LIMIT эсвэл WHERE шүүлт нэмнэ үү`;
   return msg;
 }
 
@@ -65,7 +65,7 @@ function getSuggestion(msg: string): string {
   if (msg.includes('ambiguous')) return 'Жишээ: a."Он" гэж хүснэгтийн alias ашиглана уу';
   if (msg.includes('type mismatch') || msg.includes('Conversion Error')) return 'CAST("Багана" AS DOUBLE) эсвэл CAST("Багана" AS VARCHAR) ашиглана уу';
   if (msg.includes('division by zero')) return 'NULLIF(хуваагч, 0) ашиглана уу';
-  if (msg.includes('timeout') || msg.includes('90 секунд')) return 'LIMIT 1000 нэмэх эсвэл WHERE шүүлтээр өгөгдлийг багасгана уу';
+  if (msg.includes('timeout') || msg.includes('45 секунд') || msg.includes('90 секунд')) return 'LIMIT 1000 нэмэх эсвэл WHERE шүүлтээр өгөгдлийг багасгана уу';
   return 'SQL-г дахин шалгана уу';
 }
 
@@ -101,6 +101,14 @@ export async function runSQL(
     instance = await duckdb.DuckDBInstance.create(':memory:');
     conn = await instance.connect();
 
+    // Resource limits — serverless дээр memory дайж байгуулахаас сэргийлнэ
+    try {
+      await conn.run("SET memory_limit='512MB'");
+      await conn.run('SET threads=2');
+    } catch (e) {
+      console.warn('[DuckDB] resource limit set failed:', e);
+    }
+
     // Өгөгдлийг хүснэгт болгон ачаалах
     for (const [tableName, rows] of Object.entries(tableData)) {
       if (!rows || rows.length === 0) continue;
@@ -128,10 +136,11 @@ export async function runSQL(
       }
     }
 
-    // SQL ажиллуулах (90s timeout)
+    // SQL ажиллуулах (45s timeout — Vercel 60s function limit-аас доогуур)
+    const QUERY_TIMEOUT_MS = 45_000;
     const queryPromise = conn.run(userSQL);
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('Query timeout: 90 секундээс хэтэрсэн')), 90_000)
+      setTimeout(() => reject(new Error('Query timeout: 45 секундээс хэтэрсэн')), QUERY_TIMEOUT_MS)
     );
     const result = await Promise.race([queryPromise, timeoutPromise]);
     const rawRows = await result.getRows();
