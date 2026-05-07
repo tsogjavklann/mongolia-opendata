@@ -1,10 +1,11 @@
 'use client';
 
-import { Database, Download, Share2, Clock, X } from 'lucide-react';
+import { Database, Download, Clock, X } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import type { HistoryEntry } from '@/lib/types';
 import AuthButton from './AuthButton';
 import SavedQueriesPanel from './SavedQueriesPanel';
+import ShareModal from './ShareModal';
 
 type Mode = 'guided' | 'sql' | 'tables' | 'r';
 
@@ -29,7 +30,6 @@ interface Props {
 }
 
 export default function AppHeader({ mode, setMode, history, onHistorySelect, onExport, onExportXLSX, activeTable, rowCount, currentSql, onLoadSql }: Props) {
-  const [shareCopied, setShareCopied] = useState(false);
   const [showHist, setShowHist] = useState(false);
   const histRef = useRef<HTMLDivElement>(null);
 
@@ -89,14 +89,8 @@ export default function AppHeader({ mode, setMode, history, onHistorySelect, onE
 
         {/* Right actions */}
         <div className="ml-auto flex gap-1.5 items-center">
-          {/* Share */}
-          <button onClick={() => {
-            navigator.clipboard.writeText(window.location.href).catch(() => {});
-            setShareCopied(true); setTimeout(() => setShareCopied(false), 2000);
-          }}
-            className={`btn-ghost ${shareCopied ? 'active' : ''}`}>
-            <Share2 size={12} /> {shareCopied ? 'Хуулсан!' : 'Хуваалцах'}
-          </button>
+          {/* Share — modal-той сайжруулсан UX */}
+          <ShareModal />
 
           {/* History */}
           <div ref={histRef} className="relative">
