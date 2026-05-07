@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { fetchTableList } from '@/lib/apiClient';
-import { apiError } from '@/lib/apiError';
 
 export const runtime = 'nodejs';
 
@@ -9,6 +8,7 @@ export async function GET() {
     const data = await fetchTableList();
     return NextResponse.json({ ok: true, data });
   } catch (e) {
-    return apiError('UPSTREAM', { publicMessage: 'Хүснэгтийн жагсаалт татаж чадсангүй', cause: e });
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ ok: false, error: msg, data: [] });
   }
 }

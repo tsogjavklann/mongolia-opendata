@@ -2,17 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ENGLISH_ALIASES } from '@/lib/dimensionMap';
 import { fetchTableMeta } from '@/lib/apiClient';
 import { cacheGet, cacheSet } from '@/lib/cache';
-import { apiError } from '@/lib/apiError';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
 
 export async function GET(req: NextRequest) {
   const path = req.nextUrl.searchParams.get('path');
-  if (!path) return apiError('BAD_REQUEST', { publicMessage: 'path параметр заавал байх ёстой' });
-  if (path.length > 500 || !/^[\w./\- ()]+$/i.test(path)) {
-    return apiError('BAD_REQUEST', { publicMessage: 'path формат буруу' });
-  }
+  if (!path) return NextResponse.json({ ok: false, error: 'path required', dims: [] });
 
   // Cache — зөвхөн амжилттай dims хадгална
   const cacheKey = `dims:${path}`;
@@ -43,10 +39,8 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ ok: true, dims });
   } catch (e) {
-    return apiError('UPSTREAM', {
-      publicMessage: 'Хүснэгтийн мета мэдээлэл татах үед алдаа',
-      cause: e,
-      logContext: { path },
-    });
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error('[/api/meta]', msg);
+    return NextResponse.json({ ok: false, error: msg, dims: [] }, { status: 502 });
   }
 }

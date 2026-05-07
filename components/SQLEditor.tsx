@@ -112,67 +112,42 @@ interface SQLEditorProps {
   rows?: number;
 }
 
-// Safe tokenizer for syntax highlight (no innerHTML — produces React nodes)
-type SqlTokenKind = 'text' | 'string' | 'tableQuote' | 'number' | 'comment' | 'keyword' | 'function';
-type SqlToken = { kind: SqlTokenKind; value: string };
+// SQL keyword regex — compiled once
+const SQL_KW_REGEX = new RegExp(
+  `\\b(${[
+    'SELECT','FROM','WHERE','AND','OR','NOT','IN','BETWEEN','LIKE',
+    'GROUP\\s+BY','ORDER\\s+BY','HAVING','LIMIT','OFFSET','JOIN',
+    'LEFT\\s+JOIN','RIGHT\\s+JOIN','INNER\\s+JOIN','FULL\\s+JOIN',
+    'CROSS\\s+JOIN','ON','AS','DISTINCT','ALL','UNION','WITH',
+    'CASE','WHEN','THEN','ELSE','END','OVER','PARTITION\\s+BY',
+    'ROWS\\s+BETWEEN','RANGE\\s+BETWEEN','UNBOUNDED\\s+PRECEDING',
+    'CURRENT\\s+ROW','UNBOUNDED\\s+FOLLOWING',
+    'NULL','IS\\s+NULL','IS\\s+NOT\\s+NULL','TRUE','FALSE','ASC','DESC',
+    'COUNT','SUM','AVG','MIN','MAX','ROUND','FLOOR','CEIL','ABS',
+    'RANK','DENSE_RANK','ROW_NUMBER','NTILE','LAG','LEAD',
+    'CAST','COALESCE','NULLIF','CONCAT','LOWER','UPPER','TRIM',
+  ].join('|')})\\b`,
+  'gi'
+);
 
-const HIGHLIGHT_KEYWORDS = new Set([
-  'SELECT','FROM','WHERE','AND','OR','NOT','IN','BETWEEN','LIKE',
-  'GROUP','BY','ORDER','HAVING','LIMIT','OFFSET','JOIN',
-  'LEFT','RIGHT','INNER','FULL','CROSS','ON','AS','DISTINCT','ALL',
-  'UNION','WITH','CASE','WHEN','THEN','ELSE','END','OVER','PARTITION',
-  'ROWS','RANGE','UNBOUNDED','PRECEDING','CURRENT','ROW','FOLLOWING',
-  'NULL','IS','TRUE','FALSE','ASC','DESC',
-  'FLOOR','CEIL','ABS','CONCAT','LOWER','UPPER','TRIM',
-]);
-
-const FN_NAMES = new Set([
-  'COUNT','SUM','AVG','MIN','MAX','ROUND','RANK','DENSE_RANK',
-  'ROW_NUMBER','NTILE','LAG','LEAD','COALESCE','CAST','NULLIF',
-]);
-
-const TOKEN_RX = /(--[^\n]*)|('[^']*')|("[^"]*")|(\b\d+(?:\.\d+)?\b)|([a-zA-Z_][a-zA-Z0-9_]*)/g;
-
-function tokenizeSQL(code: string): SqlToken[] {
-  const tokens: SqlToken[] = [];
-  let lastIdx = 0;
-  TOKEN_RX.lastIndex = 0;
-  let m: RegExpExecArray | null;
-  while ((m = TOKEN_RX.exec(code)) !== null) {
-    if (m.index > lastIdx) {
-      tokens.push({ kind: 'text', value: code.slice(lastIdx, m.index) });
-    }
-    const [full, comment, str, tblQ, num, word] = m;
-    if (comment) tokens.push({ kind: 'comment', value: full });
-    else if (str) tokens.push({ kind: 'string', value: full });
-    else if (tblQ) tokens.push({ kind: 'tableQuote', value: full });
-    else if (num) tokens.push({ kind: 'number', value: full });
-    else if (word) {
-      const upper = word.toUpperCase();
-      const after = code.slice(m.index + word.length);
-      if (FN_NAMES.has(upper) && /^\s*\(/.test(after)) {
-        tokens.push({ kind: 'function', value: word });
-      } else if (HIGHLIGHT_KEYWORDS.has(upper)) {
-        tokens.push({ kind: 'keyword', value: word });
-      } else {
-        tokens.push({ kind: 'text', value: word });
-      }
-    }
-    lastIdx = m.index + full.length;
-  }
-  if (lastIdx < code.length) tokens.push({ kind: 'text', value: code.slice(lastIdx) });
-  return tokens;
+// Syntax highlight — returns HTML string
+function highlight(code: string): string {
+  return code
+    // Escape HTML first
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    // Strings in quotes
+    .replace(/('[^']*')/g, '<span style="color:#86efac">$1</span>')
+    .replace(/("([^"]*)")/g, '<span style="color:#fbbf24">$2</span>') // table names
+    // Numbers
+    .replace(/\b(\d+)\b/g, '<span style="color:#fb923c">$1</span>')
+    // Comments
+    .replace(/(--[^\n]*)/g, '<span style="color:#475569;font-style:italic">$1</span>')
+    // Keywords
+    .replace(SQL_KW_REGEX, '<span style="color:#60a5fa;font-weight:700">$1</span>')
+    // Functions with parens
+    .replace(/\b(COUNT|SUM|AVG|MIN|MAX|ROUND|RANK|DENSE_RANK|ROW_NUMBER|NTILE|LAG|LEAD|COALESCE|CAST|NULLIF)\s*(?=\()/gi,
+      '<span style="color:#c084fc;font-weight:600">$1</span>');
 }
-
-const TOKEN_STYLE: Record<SqlTokenKind, React.CSSProperties> = {
-  text: {},
-  string: { color: '#86efac' },
-  tableQuote: { color: '#fbbf24' },
-  number: { color: '#fb923c' },
-  comment: { color: '#475569', fontStyle: 'italic' },
-  keyword: { color: '#60a5fa', fontWeight: 700 },
-  function: { color: '#c084fc', fontWeight: 600 },
-};
 
 export default function SQLEditor({ value, onChange, onRun, columns = [], tables = [], aliases = [], rows = 10 }: SQLEditorProps) {
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -404,12 +379,8 @@ export default function SQLEditor({ value, onChange, onRun, columns = [], tables
           zIndex: 1,
           minHeight: `${rows * 22.75 + 24}px`,
         }}
-      >
-        {tokenizeSQL(value).map((t, i) => (
-          <span key={i} style={TOKEN_STYLE[t.kind]}>{t.value}</span>
-        ))}
-        {'\n'}
-      </div>
+        dangerouslySetInnerHTML={{ __html: highlight(value) + '\n' }}
+      />
 
       {/* Actual textarea (transparent text, visible cursor) */}
       <textarea

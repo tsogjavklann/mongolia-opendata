@@ -16,10 +16,9 @@ import { fetchData, fetchTableMeta, type PxFilter } from '@/lib/apiClient';
 import { normalizeResponse } from '@/lib/transform';
 import { runSQL, buildSchemaInfo, type ColumnInfo } from '@/lib/duckdb-engine';
 import { ENGLISH_ALIASES, resolveEnglishDimension } from '@/lib/dimensionMap';
-import { apiError } from '@/lib/apiError';
 
 export const runtime = 'nodejs';
-// Vercel Hobby tier 60s function timeout-той тохирсон. DuckDB query timeout 45s (доор).
+// Hobby tier max 60s — DuckDB query timeout (lib/duckdb-engine) хязгаарлагдана.
 export const maxDuration = 60;
 
 // SQL-аас бүх "path/table.px" замуудыг гаргах
@@ -209,36 +208,22 @@ function addDefaultYearLimit(dims: DimMeta[], existing: PxFilter[]): PxFilter[] 
 }
 
 export async function POST(req: NextRequest) {
-  try {
-    return await handleSqlRun(req);
-  } catch (e) {
-    return apiError('INTERNAL', {
-      publicMessage: 'SQL ажиллуулах үед санамсаргүй алдаа гарлаа',
-      errorType: 'INTERNAL',
-      suggestion: 'Дахин оролдоно уу',
-      cause: e,
-    });
-  }
-}
-
-async function handleSqlRun(req: NextRequest) {
-  let body: { sql?: unknown; useDuckDB?: unknown };
+  let body: { sql: string; useDuckDB?: boolean };
   try { body = await req.json(); }
-  catch { return apiError('BAD_REQUEST', { publicMessage: 'JSON формат буруу', errorType: 'PARSE' }); }
+  catch { return NextResponse.json({ ok: false, error: 'Invalid JSON', errorType: 'PARSE', suggestion: '' }, { status: 400 }); }
 
-  const sql = typeof body.sql === 'string' ? body.sql : '';
-  const useDuckDB = body.useDuckDB === false ? false : true;
-  if (!sql.trim()) return apiError('BAD_REQUEST', { publicMessage: 'SQL хоосон байна', errorType: 'PARSE', suggestion: 'SQL бичнэ үү' });
+  const { sql, useDuckDB = true } = body;
+  if (!sql?.trim()) return NextResponse.json({ ok: false, error: 'SQL хоосон байна', errorType: 'PARSE', suggestion: 'SQL бичнэ үү' });
 
   // Query length limit
-  if (sql.length > 5000) return apiError('BAD_REQUEST', { publicMessage: 'SQL хэт урт (5000 тэмдэгтээс хэтэрсэн)', errorType: 'PARSE', suggestion: 'SQL-г богиносгоно уу' });
+  if (sql.length > 5000) return NextResponse.json({ ok: false, error: 'SQL хэт урт (5000 тэмдэгтээс хэтэрсэн)', errorType: 'PARSE', suggestion: 'SQL-г богиносгоно уу' }, { status: 400 });
 
   // Block write/DDL operations — only SELECT allowed
-  const BLOCKED_OPS = /^\s*(DROP|DELETE|ALTER|CREATE|INSERT|UPDATE|TRUNCATE|GRANT|REVOKE|ATTACH|DETACH|COPY|EXPORT|IMPORT|PRAGMA|LOAD|INSTALL|SET)\b/i;
+  const BLOCKED_OPS = /^\s*(DROP|DELETE|ALTER|CREATE|INSERT|UPDATE|TRUNCATE|GRANT|REVOKE)\b/i;
   const statements = sql.split(';').filter(s => s.trim());
   for (const stmt of statements) {
     if (BLOCKED_OPS.test(stmt.trim())) {
-      return apiError('BAD_REQUEST', { publicMessage: 'Зөвхөн SELECT асуулга зөвшөөрөгдөнө', errorType: 'PARSE', suggestion: 'DROP, DELETE, ALTER зэрэг үйлдэл хориотой' });
+      return NextResponse.json({ ok: false, error: 'Зөвхөн SELECT асуулга зөвшөөрөгдөнө', errorType: 'PARSE', suggestion: 'DROP, DELETE, ALTER зэрэг үйлдэл хориотой' }, { status: 400 });
     }
   }
 
@@ -248,12 +233,12 @@ async function handleSqlRun(req: NextRequest) {
   // 1. SQL-аас бүх хүснэгтийн замыг гаргах
   const tablePaths = extractAllTablePaths(resolvedSql);
   if (tablePaths.length === 0) {
-    return apiError('BAD_REQUEST', { publicMessage: 'FROM заагаагүй', errorType: 'FROM', suggestion: 'FROM "хүснэгтийн зам" гэж бичнэ үү' });
+    return NextResponse.json({ ok: false, error: 'FROM заагаагүй', errorType: 'FROM', suggestion: 'FROM "хүснэгтийн зам" гэж бичнэ үү' });
   }
 
   // Query complexity limit: max 5 tables
   if (tablePaths.length > 5) {
-    return apiError('BAD_REQUEST', { publicMessage: '5-аас олон хүснэгт JOIN хийх боломжгүй', errorType: 'PARSE', suggestion: 'Хүснэгтийн тоог багасгана уу' });
+    return NextResponse.json({ ok: false, error: '5-аас олон хүснэгт JOIN хийх боломжгүй', errorType: 'PARSE', suggestion: 'Хүснэгтийн тоог багасгана уу' }, { status: 400 });
   }
 
   // 2. WHERE шүүлтийг задлах
@@ -278,17 +263,11 @@ async function handleSqlRun(req: NextRequest) {
   // Алдаа шалгах
   const failedResults = tableResults.filter(r => r.status === 'rejected');
   if (failedResults.length > 0) {
-    const total = tablePaths.length;
-    const failed = failedResults.length;
-    return apiError('UPSTREAM', {
-      publicMessage: failed === total
-        ? '1212.mn-аас хүснэгт татаж чадсангүй'
-        : `${failed}/${total} хүснэгт ачаалахад алдаа гарлаа`,
-      errorType: 'FETCH',
-      suggestion: 'Хүснэгтийн замыг шалгана уу',
-      logContext: { failed, total, paths: tablePaths.map(t => t.path) },
-      cause: failedResults.map(r => (r as PromiseRejectedResult).reason),
-    });
+    const msgs = failedResults.map(r => (r as PromiseRejectedResult).reason?.message ?? 'Татахад алдаа гарлаа');
+    const error = failedResults.length === tablePaths.length
+      ? msgs[0]
+      : `${failedResults.length}/${tablePaths.length} хүснэгт ачаалахад алдаа: ${msgs.join('; ')}`;
+    return NextResponse.json({ ok: false, error, errorType: 'FETCH', suggestion: 'Хүснэгтийн замыг шалгана уу' }, { status: 502 });
   }
 
   // 3. Table name mapping үүсгэх
@@ -319,11 +298,12 @@ async function handleSqlRun(req: NextRequest) {
 
   // Row limit: max 500,000 total rows across all tables
   if (totalRows > 500_000) {
-    return apiError('BAD_REQUEST', {
-      publicMessage: `Нийт ${totalRows.toLocaleString()} мөр — хэт их (500,000 хязгаар)`,
+    return NextResponse.json({
+      ok: false,
+      error: `Нийт ${totalRows.toLocaleString()} мөр — хэт их (500,000 хязгаар)`,
       errorType: 'DATA',
       suggestion: 'WHERE шүүлт нэмж өгөгдлийг багасгана уу',
-    });
+    }, { status: 400 });
   }
 
   // 5. SQL дахь long path-уудыг богино нэрээр солих

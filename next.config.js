@@ -1,24 +1,10 @@
 /** @type {import('next').NextConfig} */
-// CORS — production-д тодорхой origin зөвшөөрнө, dev-д * ашиглана
-const corsOrigin = process.env.NEXT_PUBLIC_APP_URL || (process.env.NODE_ENV === 'production' ? '' : '*');
-
 const nextConfig = {
   async headers() {
-    const apiHeaders = [
-      { key: 'Vary', value: 'Origin' },
-      { key: 'X-Content-Type-Options', value: 'nosniff' },
-      { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-    ];
-    if (corsOrigin) {
-      apiHeaders.unshift({ key: 'Access-Control-Allow-Origin', value: corsOrigin });
-    }
     return [
-      { source: '/api/:path*', headers: apiHeaders },
       {
-        source: '/(tables|aliases).json',
-        headers: [
-          { key: 'Cache-Control', value: 'public, max-age=86400, stale-while-revalidate=604800' },
-        ],
+        source: '/api/:path*',
+        headers: [{ key: 'Access-Control-Allow-Origin', value: '*' }],
       },
     ];
   },
