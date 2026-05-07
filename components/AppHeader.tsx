@@ -3,6 +3,7 @@
 import { Database, Download, Share2, Clock, X } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import type { HistoryEntry } from '@/lib/types';
+import AuthButton from './AuthButton';
 
 type Mode = 'guided' | 'sql' | 'tables' | 'r';
 
@@ -133,6 +134,9 @@ export default function AppHeader({ mode, setMode, history, onHistorySelect, onE
               <Download size={12} /> Excel
             </button>
           )}
+
+          {/* Auth — Sign in / Sign out */}
+          <AuthButton />
         </div>
       </div>
     </header>
