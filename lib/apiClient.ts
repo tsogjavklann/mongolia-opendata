@@ -122,48 +122,65 @@ export interface DataPayload {
   limit?: number;
 }
 
+/** Тогтвортой cache key — filter-үүдийг код→утгаар sort хийж stringify */
+function buildDataCacheKey(payload: DataPayload): string {
+  const path = payload.tblId.endsWith('.px') ? payload.tblId : `${payload.tblId}.px`;
+  const sorted = (payload.filters ?? [])
+    .map(f => ({ code: f.code, values: [...f.values].sort() }))
+    .sort((a, b) => a.code.localeCompare(b.code));
+  return `data:${path}:${JSON.stringify(sorted)}`;
+}
+
 /**
  * POST /api/v1/mn/NSO/{path}.px
  * PX-Web json-stat2 формат
+ * In-memory cache + dedupe — давхар хүсэлт хийхгүй
  */
 export async function fetchData(payload: DataPayload): Promise<unknown> {
-  // path дотор .px байхгүй бол нэм
-  const rawPath = payload.tblId.endsWith('.px') ? payload.tblId : `${payload.tblId}.px`;
-  const url = BASE + '/' + encodePath(rawPath);
+  const cacheKey = buildDataCacheKey(payload);
+  const cached = cacheGet<unknown>(cacheKey);
+  if (cached) return cached;
 
-  const query = (payload.filters ?? []).map(f => ({
-    code: f.code,
-    selection: {
-      filter: 'item',
-      values: f.values,
+  return dedupe(cacheKey, async () => {
+    // path дотор .px байхгүй бол нэм
+    const rawPath = payload.tblId.endsWith('.px') ? payload.tblId : `${payload.tblId}.px`;
+    const url = BASE + '/' + encodePath(rawPath);
+
+    const query = (payload.filters ?? []).map(f => ({
+      code: f.code,
+      selection: {
+        filter: 'item',
+        values: f.values,
+      }
+    }));
+
+    const body = {
+      query,
+      response: { format: 'json-stat2' }
+    };
+
+    const res = await fetchWithRetry(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    const text = await res.text();
+    let data: unknown;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new Error(`Invalid JSON response: ${text.slice(0, 200)}`);
     }
-  }));
 
-  const body = {
-    query,
-    response: { format: 'json-stat2' }
-  };
+    if (!res.ok) {
+      throw new Error(`Data API returned ${res.status}: ${text.slice(0, 300)}`);
+    }
 
-  const res = await fetchWithRetry(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
-    body: JSON.stringify(body),
+    cacheSet(cacheKey, data);
+    return data;
   });
-
-  const text = await res.text();
-  let data: unknown;
-  try {
-    data = JSON.parse(text);
-  } catch {
-    throw new Error(`Invalid JSON response: ${text.slice(0, 200)}`);
-  }
-
-  if (!res.ok) {
-    throw new Error(`Data API returned ${res.status}: ${text.slice(0, 300)}`);
-  }
-
-  return data;
 }

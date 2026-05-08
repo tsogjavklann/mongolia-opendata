@@ -25,6 +25,11 @@ const nextConfig = {
   },
   experimental: {
     serverComponentsExternalPackages: ['@duckdb/node-api', '@duckdb/node-bindings'],
+    outputFileTracingIncludes: {
+      '/api/sqlrun': ['./public/aliases.json'],
+      '/api/run': ['./public/aliases.json'],
+      '/api/ai/sql': ['./public/aliases.json'],
+    },
   },
 };
 

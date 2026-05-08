@@ -8,21 +8,61 @@ import { useGuidedMode } from '@/hooks/useGuidedMode';
 import AppHeader from '@/components/AppHeader';
 import GuidedMode from '@/components/GuidedMode';
 import SQLMode from '@/components/SQLMode';
+import type { AIResult } from '@/components/AskAI';
 
 const TablesMode = dynamic(() => import('@/components/TablesMode'), { ssr: false });
 const RMode = dynamic(() => import('@/components/RMode'), { ssr: false });
+const CompareMode = dynamic(() => import('@/components/CompareMode'), { ssr: false });
 
 const DEFAULT_SQL = `SELECT *\nFROM "Population, household/1_Population, household/DT_NSO_0300_001V3.px"\nWHERE Gender IN ('0','1','2')\nLIMIT 500;`;
 
 function AppInner() {
   const searchParams = useSearchParams();
-  const urlMode = searchParams.get('mode') as 'guided' | 'sql' | 'tables' | 'r' | null;
+  const urlMode = searchParams.get('mode') as 'guided' | 'sql' | 'tables' | 'compare' | 'r' | null;
   const urlQ = searchParams.get('q');
 
-  const [mode, setMode] = useState<'guided' | 'sql' | 'tables' | 'r'>(urlMode ?? 'guided');
+  const [mode, setMode] = useState<'guided' | 'sql' | 'tables' | 'compare' | 'r'>(urlMode ?? 'guided');
 
   const engine = useQueryEngine(urlQ ?? DEFAULT_SQL);
   const guided = useGuidedMode();
+
+  // Compare-д prefill хийх state
+  const [compareInitial, setCompareInitial] = useState<{
+    leftSql: string; rightSql: string; leftLabel: string; rightLabel: string; autoRun: boolean;
+  } | undefined>(undefined);
+
+  // RMode (Python)-руу AI үүсгэсэн SQL + код дамжуулах state
+  const [pythonInitial, setPythonInitial] = useState<{
+    sql: string; code: string; autoRun: boolean;
+  } | undefined>(undefined);
+
+  const handleAIResult = (r: AIResult) => {
+    if (r.format === 'sql' && r.sql) {
+      engine.setSql(r.sql);
+      engine.setTab('chart');
+      setMode('sql');
+      setTimeout(() => engine.runSQL(r.sql), 50);
+    } else if (r.format === 'table' && r.sql) {
+      engine.setSql(r.sql);
+      engine.setTab('table');
+      setMode('sql');
+      setTimeout(() => engine.runSQL(r.sql), 50);
+    } else if (r.format === 'compare' && r.leftSql && r.rightSql) {
+      setCompareInitial({
+        leftSql: r.leftSql,
+        rightSql: r.rightSql,
+        leftLabel: r.leftLabel ?? 'Зүүн',
+        rightLabel: r.rightLabel ?? 'Баруун',
+        autoRun: true,
+      });
+      setMode('compare');
+    } else if (r.format === 'python' && r.sql && r.python) {
+      // Python format → RMode (Python tab)-руу шилжиж SQL-аар өгөгдөл татаад
+      // AI-ийн Python кодыг editor-д бөглөж autoRun хийнэ
+      setPythonInitial({ sql: r.sql, code: r.python, autoRun: true });
+      setMode('r');
+    }
+  };
 
   // Sync mode + sql to URL
   useEffect(() => {
@@ -57,6 +97,7 @@ function AppInner() {
             guidedError={guided.guidedError}
             loadGuidedTable={guided.loadGuidedTable}
             onEditInSQL={(sql) => { engine.setSql(sql); setMode('sql'); }}
+            onAIResult={handleAIResult}
           />
         )}
 
@@ -67,8 +108,15 @@ function AppInner() {
           }} />
         )}
 
+        {mode === 'compare' && <CompareMode initial={compareInitial} />}
+
         {mode === 'r' && (
-          <RMode initialData={engine.result ? { rows: engine.result.rows as Record<string, unknown>[], tableName: engine.result.explain?.table } : undefined} />
+          <RMode
+            initialData={!pythonInitial && engine.result ? { rows: engine.result.rows as Record<string, unknown>[], tableName: engine.result.explain?.table } : undefined}
+            initialSql={pythonInitial?.sql}
+            initialCode={pythonInitial?.code}
+            autoRun={pythonInitial?.autoRun}
+          />
         )}
 
         {mode === 'sql' && (
@@ -94,13 +142,36 @@ function AppInner() {
           <span>ҮСХ · data.1212.mn</span>
         </div>
       </footer>
+
+    </div>
+  );
+}
+
+function PageFallback() {
+  return (
+    <div
+      className="flex items-center justify-center h-screen flex-col gap-3"
+      style={{ background: 'linear-gradient(180deg, #050a14 0%, #070e1a 50%, #050a14 100%)' }}
+    >
+      <div
+        className="w-10 h-10 rounded-xl flex items-center justify-center animate-pulse"
+        style={{ background: 'linear-gradient(135deg, #00d68f 0%, #0080ff 100%)' }}
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+          <ellipse cx="12" cy="5" rx="9" ry="3" />
+          <path d="M3 5v14a9 3 0 0 0 18 0V5" />
+          <path d="M3 12a9 3 0 0 0 18 0" />
+        </svg>
+      </div>
+      <div className="text-[13px] text-ink-300 font-display font-bold">Монголын Нээлттэй Өгөгдөл</div>
+      <div className="text-[11px] text-ink-600 font-mono tracking-wider">АЧААЛЛАЖ БАЙНА · 1,282 ХҮСНЭГТ</div>
     </div>
   );
 }
 
 export default function Page() {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center h-screen text-ink-600">Ачааллаж байна...</div>}>
+    <Suspense fallback={<PageFallback />}>
       <AppInner />
     </Suspense>
   );

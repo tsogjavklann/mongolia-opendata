@@ -4,6 +4,8 @@ import { RefreshCw, AlertTriangle, ArrowLeft } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import type { DimMeta, TableEntry } from '@/lib/types';
 import TableSearch from '@/components/TableSearch';
+import AskAI, { type AIResult } from '@/components/AskAI';
+import Stories from '@/components/Stories';
 
 const CheckboxExplorer = dynamic(() => import('@/components/CheckboxExplorer'), { ssr: false });
 
@@ -23,15 +25,45 @@ interface Props {
   guidedError: string | null;
   loadGuidedTable: (t: TableEntry) => void;
   onEditInSQL?: (sql: string) => void;
+  onAIResult?: (result: AIResult) => void;
 }
 
-export default function GuidedMode({ guidedTable, guidedDims, guidedLoading, guidedError, loadGuidedTable, onEditInSQL }: Props) {
+export default function GuidedMode({ guidedTable, guidedDims, guidedLoading, guidedError, loadGuidedTable, onEditInSQL, onAIResult }: Props) {
   return (
     <div>
+      {/* Hero header */}
+      {!guidedTable && (
+        <div className="mb-5 text-center">
+          <h1 className="font-display font-bold text-ink-100 tracking-tight"
+            style={{ fontSize: 'clamp(22px, 3vw, 32px)', lineHeight: 1.15 }}>
+            Монголын статистик{' '}
+            <span style={{
+              background: 'linear-gradient(135deg,#00d68f,#5b9cf6)',
+              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+            }}>хормын дотор</span>
+          </h1>
+          <p className="text-[13px] text-ink-500 mt-2 max-w-[540px] mx-auto leading-relaxed">
+            Монгол хэлээр асуу, бэлэн дашбоард сонго, эсвэл SQL бичиж 1,282 хүснэгтээс өгөгдөл татаж график үүсгэ.
+          </p>
+        </div>
+      )}
+
+      {/* Hero — байгалийн хэлээр асуу (4 формат: SQL / Хүснэгт / Харьцуулах / Python) */}
+      {!guidedTable && onAIResult && (
+        <AskAI onResult={onAIResult} />
+      )}
+
       {/* Search bar */}
       <div className="max-w-[580px] mb-5">
         <TableSearch onSelect={loadGuidedTable} placeholder="Хүснэгт хайх... (жш: хүн ам, ДНБ, боловсрол)" />
       </div>
+
+      {/* Pre-built stories */}
+      {!guidedTable && (
+        <div className="mb-7">
+          <Stories onOpenInSQL={onEditInSQL} />
+        </div>
+      )}
 
       {/* Popular cards */}
       {!guidedTable && (

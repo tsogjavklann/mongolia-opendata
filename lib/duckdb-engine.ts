@@ -40,6 +40,94 @@ function inferColumns(rows: DataRow[]): { name: string; type: 'DOUBLE' | 'VARCHA
   });
 }
 
+/**
+ * Cyrillic тэмдэгтүүд DuckDB Linux binding-д UTF-8 encoding bug бий.
+ * Тиймээс identifier-ууд ба string value-уудыг бүхэлд нь ASCII tag-аар орлуулна:
+ *   - Нэр: "Он" → "c_He_1"
+ *   - Утга: "Нийт дүн" → "v_a3f2"
+ * SQL execute хийхээс өмнө Cyrillic-ийг tag-аар орлуулж, үр дүнг буцааж label болгоно.
+ */
+export interface CyrillicMap {
+  identifiers: { ascii: string; original: string }[];
+  values: { ascii: string; original: string }[];
+}
+
+function safeAscii(name: string, prefix: string, used: Set<string>): string {
+  let base = `${prefix}_${name.replace(/[^A-Za-z0-9_]/g, '').slice(0, 10) || 'x'}`;
+  let candidate = base;
+  let i = 0;
+  while (used.has(candidate.toLowerCase())) {
+    candidate = `${base}_${++i}`;
+  }
+  used.add(candidate.toLowerCase());
+  return candidate;
+}
+
+function isAscii(s: string): boolean {
+  return /^[\x00-\x7F]*$/.test(s);
+}
+
+function buildCyrillicMap(
+  columnNames: string[],
+  rows: DataRow[],
+): CyrillicMap {
+  const idUsed = new Set<string>();
+  const identifiers: { ascii: string; original: string }[] = [];
+  for (const name of columnNames) {
+    if (isAscii(name)) {
+      identifiers.push({ ascii: name, original: name });
+      idUsed.add(name.toLowerCase());
+    } else {
+      identifiers.push({ ascii: safeAscii(name, 'c', idUsed), original: name });
+    }
+  }
+
+  // Утгууд — Cyrillic string literal-уудыг tag болгох
+  const valueUsed = new Set<string>();
+  const valueMap = new Map<string, string>(); // original → ascii
+  for (const row of rows) {
+    for (const [k, v] of Object.entries(row)) {
+      if (typeof v !== 'string') continue;
+      if (isAscii(v)) continue;
+      if (!valueMap.has(v)) {
+        valueMap.set(v, safeAscii(v, 'v', valueUsed));
+      }
+    }
+  }
+  const values = Array.from(valueMap.entries()).map(([original, ascii]) => ({ ascii, original }));
+  return { identifiers, values };
+}
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** SQL дотор Cyrillic identifier болон string literal-уудыг ASCII tag-аар орлуулах */
+function rewriteSQL(sql: string, map: CyrillicMap): string {
+  let result = sql;
+
+  // 1. Identifier (хашилттай ба хашилтгүй)
+  const sortedIds = [...map.identifiers].sort((a, b) => b.original.length - a.original.length);
+  for (const { ascii, original } of sortedIds) {
+    if (ascii === original) continue;
+    result = result.replace(new RegExp(`"${escapeRegex(original)}"`, 'g'), `"${ascii}"`);
+    result = result.replace(
+      new RegExp(`(^|[^"\\w\\u0400-\\u04FF])(${escapeRegex(original)})(?=$|[^"\\w\\u0400-\\u04FF])`, 'g'),
+      (_, pre) => `${pre}"${ascii}"`,
+    );
+  }
+
+  // 2. String literal-уудын доторх Cyrillic утгуудыг tag-аар орлуулах
+  // SQL дотор '...' гэсэн литерал бүрд тохирох утга байгаа эсэхийг шалгана
+  const sortedVals = [...map.values].sort((a, b) => b.original.length - a.original.length);
+  for (const { ascii, original } of sortedVals) {
+    // 'value' эсвэл "value" хэлбэрт байна
+    const escaped = original.replace(/'/g, "''");
+    result = result.replace(new RegExp(`'${escapeRegex(escaped)}'`, 'g'), `'${ascii}'`);
+  }
+  return result;
+}
+
 function formatError(msg: string): string {
   if (msg.includes('no such table') || msg.includes('does not exist'))
     return `Хүснэгт олдсонгүй — FROM-д зөв нэр бичнэ үү`;
@@ -101,15 +189,29 @@ export async function runSQL(
     instance = await duckdb.DuckDBInstance.create(':memory:');
     conn = await instance.connect();
 
-    // Өгөгдлийг хүснэгт болгон ачаалах
+    // Cyrillic identifier ба value-уудыг ASCII tag-аар орлуулах нэгдсэн map
+    // (DuckDB Linux binding-ийн UTF-8 алдааг тойрох цогц шийдэл)
+    const allColumnNames = new Set<string>();
+    const allRows: DataRow[] = [];
+    for (const rows of Object.values(tableData)) {
+      if (!rows?.length) continue;
+      for (const k of Object.keys(rows[0])) allColumnNames.add(k);
+      allRows.push(...rows);
+    }
+    const cyrMap = buildCyrillicMap([...allColumnNames], allRows);
+    const idAscii = (orig: string) => cyrMap.identifiers.find(m => m.original === orig)?.ascii ?? orig;
+    const idReverse = (a: string) => cyrMap.identifiers.find(m => m.ascii === a)?.original ?? a;
+    const valAscii = (orig: string) => cyrMap.values.find(m => m.original === orig)?.ascii ?? orig;
+    const valReverse = (a: string) => cyrMap.values.find(m => m.ascii === a)?.original ?? a;
+
+    // Өгөгдлийг хүснэгт болгон ачаалах (бүх Cyrillic-ийг ASCII tag-аар орлуулсан)
     for (const [tableName, rows] of Object.entries(tableData)) {
       if (!rows || rows.length === 0) continue;
 
       const columns = inferColumns(rows);
-      const colDefs = columns.map(c => `"${c.name}" ${c.type}`).join(', ');
+      const colDefs = columns.map(c => `"${idAscii(c.name)}" ${c.type}`).join(', ');
       await conn.run(`CREATE TABLE IF NOT EXISTS "${tableName}" (${colDefs})`);
 
-      // Batch insert — batch size scales with data volume
       const BATCH = rows.length > 50_000 ? 100 : rows.length > 10_000 ? 200 : 500;
       for (let i = 0; i < rows.length; i += BATCH) {
         const batch = rows.slice(i, i + BATCH);
@@ -121,27 +223,43 @@ export async function runSQL(
               const n = typeof v === 'number' ? v : parseFloat(String(v));
               return isNaN(n) ? 'NULL' : String(n);
             }
-            return `'${String(v).replace(/'/g, "''")}'`;
+            // String value — Cyrillic байвал ASCII tag болгох
+            const sv = String(v);
+            const safe = isAscii(sv) ? sv : valAscii(sv);
+            return `'${safe.replace(/'/g, "''")}'`;
           }).join(', ') + ')'
         ).join(', ');
         await conn.run(`INSERT INTO "${tableName}" VALUES ${vals}`);
       }
     }
 
+    // Хэрэглэгчийн SQL-ийг бүхэлд нь ASCII болгох (identifier + string literal-ууд)
+    const rewrittenSQL = rewriteSQL(userSQL, cyrMap);
+
     // SQL ажиллуулах (90s timeout)
-    const queryPromise = conn.run(userSQL);
+    const queryPromise = conn.run(rewrittenSQL);
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error('Query timeout: 90 секундээс хэтэрсэн')), 90_000)
     );
     const result = await Promise.race([queryPromise, timeoutPromise]);
     const rawRows = await result.getRows();
-    const columnNames = result.columnNames();
+    const asciiColumnNames = result.columnNames();
+    const columnNames = asciiColumnNames.map((c: string) => idReverse(c));
 
     const rows: DataRow[] = rawRows.map((row: unknown[]) => {
       const obj: DataRow = {};
       columnNames.forEach((col: string, i: number) => {
         const v = row[i];
-        obj[col] = (v === null || v === undefined) ? '' : (typeof v === 'bigint' ? Number(v) : v as string | number);
+        if (v === null || v === undefined) {
+          obj[col] = '';
+        } else if (typeof v === 'bigint') {
+          obj[col] = Number(v);
+        } else if (typeof v === 'string') {
+          // Cyrillic ASCII tag-ыг буцаагаад жинхэнэ утга болгох
+          obj[col] = valReverse(v);
+        } else {
+          obj[col] = v as string | number;
+        }
       });
       return obj;
     });

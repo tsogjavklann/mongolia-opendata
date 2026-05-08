@@ -207,6 +207,25 @@ function addDefaultYearLimit(dims: DimMeta[], existing: PxFilter[]): PxFilter[] 
   return [...existing, { code: yearDim.code, values: recent }];
 }
 
+/**
+ * PX-Web API требует утга бүх хэмжээст. WHERE-т алгүй хэмжээсүүдэд бүх утгыг
+ * автоматаар нэмж оруулж "Bad Request" сэргийлнэ. Хэт олон утгатай (>500)
+ * бол эхний 500-ыг авна.
+ */
+function fillMissingDimensions(dims: DimMeta[], existing: PxFilter[]): PxFilter[] {
+  const filledCodes = new Set(existing.map(f => f.code));
+  const additions: PxFilter[] = [];
+  for (const dim of dims) {
+    if (filledCodes.has(dim.code)) continue;
+    // Хэт олон утгатай dimension-д "*" wildcard илүү найдвартай биш тул
+    // бүх code-уудыг шууд явуулна (PX-Web "filter: item" хэлбэр)
+    const allValues = dim.values.map(v => v.code).slice(0, 500);
+    if (allValues.length === 0) continue;
+    additions.push({ code: dim.code, values: allValues });
+  }
+  return [...existing, ...additions];
+}
+
 export async function POST(req: NextRequest) {
   let body: { sql: string; useDuckDB?: boolean };
   try { body = await req.json(); }
@@ -249,9 +268,11 @@ export async function POST(req: NextRequest) {
   const tableResults = await Promise.allSettled(
     tablePaths.map(async ({ path }) => {
       const dims = await fetchTableDims(path);
-      // WHERE-аас тохирох шүүлт олох + жилийн автомат хязгаар
+      // WHERE-аас тохирох шүүлт олох + жилийн автомат хязгаар + алгүй
+      // хэмжээсүүдэд бүх утга нэмэх (PX-Web "Bad Request"-ээс сэргийлэх)
       let filters = matchFiltersToTable(whereFilters, dims);
       filters = addDefaultYearLimit(dims, filters);
+      filters = fillMissingDimensions(dims, filters);
       const raw = await fetchData({ tblId: path, filters });
       const rows = normalizeResponse(raw);
       return { path, dims, rows };

@@ -7,12 +7,13 @@ import AuthButton from './AuthButton';
 import SavedQueriesPanel from './SavedQueriesPanel';
 import ShareModal from './ShareModal';
 
-type Mode = 'guided' | 'sql' | 'tables' | 'r';
+type Mode = 'guided' | 'sql' | 'tables' | 'compare' | 'r';
 
 const MODE_TABS: { key: Mode; label: string; color: string; glow: string }[] = [
   { key: 'guided', label: 'Хялбар', color: '#00d68f', glow: 'rgba(0,214,143,0.15)' },
   { key: 'sql', label: 'SQL', color: '#5b9cf6', glow: 'rgba(91,156,246,0.15)' },
   { key: 'tables', label: 'Хүснэгт', color: '#f0b040', glow: 'rgba(240,176,64,0.15)' },
+  { key: 'compare', label: 'Харьцуулах', color: '#f472b6', glow: 'rgba(244,114,182,0.15)' },
   { key: 'r', label: 'Python', color: '#a78bfa', glow: 'rgba(167,139,250,0.15)' },
 ];
 

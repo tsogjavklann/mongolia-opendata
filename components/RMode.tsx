@@ -245,10 +245,10 @@ async function init() {
     script.onload = async () => {
       try {
         pyodide = await loadPyodide();
-        await pyodide.loadPackage(['numpy','pandas','matplotlib']);
+        await pyodide.loadPackage(['numpy','pandas','matplotlib','scikit-learn']);
         document.getElementById('out').innerHTML = '';
-        log('Python бэлэн! (pandas, matplotlib, numpy)', 'ok');
-        parent.postMessage({ type:'status', status:'ready', msg:'Python бэлэн' }, '*');
+        log('Python бэлэн! (pandas, matplotlib, numpy, sklearn)', 'ok');
+        parent.postMessage({ type:'status', status:'ready', msg:'Python + ML бэлэн' }, '*');
       } catch(e) { log('Package ачаалахад алдаа: '+e.message, 'err'); parent.postMessage({type:'status',status:'error',msg:e.message},'*'); }
     };
     document.head.appendChild(script);
@@ -315,16 +315,23 @@ init();
 
 interface RModeProps {
   initialData?: { rows: Record<string, unknown>[]; tableName?: string };
+  /** AI Python format буцсан үед — SQL-аар автоматаар өгөгдөл татна */
+  initialSql?: string;
+  /** AI үүсгэсэн Python код — editor-д бөглөгдөнө */
+  initialCode?: string;
+  /** Pyodide бэлэн болсны дараа кодыг автоматаар ажиллуулах */
+  autoRun?: boolean;
 }
 
-export default function RMode({ initialData }: RModeProps) {
+export default function RMode({ initialData, initialSql, initialCode, autoRun }: RModeProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'running' | 'error'>('loading');
-  const [statusMsg, setStatusMsg] = useState('Pyodide ачааллаж байна...');
-  const [code, setCode] = useState(PY_EXAMPLES[0].code);
+  const [statusMsg, setStatusMsg] = useState('Pyodide ачааллаж байна (sklearn ML багц багтсан, ~10 сек)...');
+  const [code, setCode] = useState(initialCode ?? PY_EXAMPLES[0].code);
   const [rows, setRows] = useState<Record<string, unknown>[]>(initialData?.rows ?? []);
   const [tableName, setTableName] = useState(initialData?.tableName ?? '');
   const [dataLoading, setDataLoading] = useState(false);
+  const autoRanRef = useRef(false);
 
   useEffect(() => {
     const handler = (ev: MessageEvent) => {
@@ -347,6 +354,40 @@ export default function RMode({ initialData }: RModeProps) {
       iframeRef.current.contentWindow?.postMessage({ type: 'loadData', data: rows }, '*');
     }
   }, [rows]);
+
+  // AI Python format-аас ирсэн SQL-аар автоматаар өгөгдөл татах
+  useEffect(() => {
+    if (!initialSql) return;
+    setDataLoading(true);
+    setTableName('AI асуултын өгөгдөл');
+    fetch('/api/sqlrun', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sql: initialSql, useDuckDB: true }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok) setRows(data.rows ?? []);
+        else alert('Өгөгдөл татаж чадсангүй: ' + (data.error ?? 'unknown'));
+      })
+      .catch(e => alert('Сүлжээний алдаа: ' + String(e)))
+      .finally(() => setDataLoading(false));
+  }, [initialSql]);
+
+  // initialCode өөрчлөгдвөл editor-ыг шинэчлэх
+  useEffect(() => {
+    if (initialCode) setCode(initialCode);
+  }, [initialCode]);
+
+  // autoRun: Pyodide бэлэн + rows ачааллагдсан → автоматаар ажиллуулах
+  useEffect(() => {
+    if (!autoRun || autoRanRef.current) return;
+    if (status !== 'ready' || rows.length === 0) return;
+    autoRanRef.current = true;
+    setTimeout(() => {
+      iframeRef.current?.contentWindow?.postMessage({ type: 'run', code, data: rows }, '*');
+    }, 200);
+  }, [autoRun, status, rows, code]);
 
   const runCode = useCallback(() => {
     if (status !== 'ready') return;

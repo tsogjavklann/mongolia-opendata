@@ -29,17 +29,45 @@ export async function loadAliases(): Promise<TableAlias[]> {
   } catch { return []; }
 }
 
-/** Server-side: aliases.json-г require-аар ачаална (fs/path ашиглахгүй) */
+/** Server-side: aliases.json + DEFAULT_ALIASES merge хийнэ (DEFAULT эрхэмлэлтэй) */
 export function loadAliasesSync(): TableAlias[] {
   if (_aliases) return _aliases;
+  if (typeof window !== 'undefined') {
+    _aliases = DEFAULT_ALIASES;
+    _byAlias = new Map(DEFAULT_ALIASES.map(a => [a.alias, a]));
+    return DEFAULT_ALIASES;
+  }
+
+  let fileAliases: TableAlias[] = [];
   try {
-    // Next.js API route (server) дотор ажиллана — client bundle-д орохгүй
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const data = require('../../public/aliases.json') as TableAlias[];
-    _aliases = data;
-    _byAlias = new Map(data.map((a: TableAlias) => [a.alias, a]));
-    return data;
-  } catch { return DEFAULT_ALIASES; }
+    const fs = require('fs') as typeof import('fs');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const path = require('path') as typeof import('path');
+    const candidates = [
+      path.join(process.cwd(), 'public', 'aliases.json'),
+      path.join(__dirname, '..', 'public', 'aliases.json'),
+      path.join(__dirname, '..', '..', 'public', 'aliases.json'),
+      path.join(__dirname, '..', '..', '..', 'public', 'aliases.json'),
+    ];
+    for (const filePath of candidates) {
+      try {
+        const raw = fs.readFileSync(filePath, 'utf-8');
+        fileAliases = JSON.parse(raw) as TableAlias[];
+        break;
+      } catch { /* try next */ }
+    }
+  } catch (e) {
+    console.warn('[tableAliases] fs error:', e instanceof Error ? e.message : e);
+  }
+
+  // Merge: DEFAULT_ALIASES эрхэм (тэдгээр нь curated, гараар хийсэн)
+  const merged = new Map<string, TableAlias>();
+  for (const a of fileAliases) merged.set(a.alias, a);
+  for (const a of DEFAULT_ALIASES) merged.set(a.alias, a); // override
+  _aliases = Array.from(merged.values());
+  _byAlias = merged;
+  return _aliases;
 }
 
 /** SQL-д alias → бүтэн зам орлуулах */

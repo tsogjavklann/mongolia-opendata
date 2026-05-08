@@ -25,13 +25,18 @@ function LoadingSkeleton() {
     return () => clearInterval(timer);
   }, []);
 
+  const stage = elapsed < 3 ? '1212.mn-аас өгөгдөл татаж байна'
+    : elapsed < 8 ? 'PX-Web хариу хүлээж байна'
+    : elapsed < 20 ? 'json-stat2 хөрвүүлж DuckDB-д ачаалж байна'
+    : 'Сервер удаан хариу өгч байна — түр хүлээгээрэй';
+
   return (
     <div className="card">
       {/* Progress header */}
       <div className="flex items-center gap-3 mb-4">
         <RefreshCw size={16} className="text-accent spin" />
         <div>
-          <div className="text-sm text-ink-400">Өгөгдөл татаж байна...</div>
+          <div className="text-sm text-ink-400">{stage}</div>
           <div className="text-[11px] text-ink-600 mt-0.5">
             {elapsed}с өнгөрлөө {elapsed > 10 && '· ихэвчлэн 30-60с'}
           </div>
