@@ -23,6 +23,14 @@ build/
 client_secret*.json
 *credentials*.json
 secret*.json
+# Plaintext API keys (.txt, .key, etc) — never commit
+*api*key*
+*openai*key*
+*sk-svcacct*
+*sk-proj*
+*.key
+*.pem
+secrets.txt
 
 # debug
 npm-debug.log*
