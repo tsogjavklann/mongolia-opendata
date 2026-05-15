@@ -1,21 +1,28 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Share2, Copy, Check, X, ExternalLink, Image as ImageIcon, Code } from 'lucide-react';
+import { Share2, Copy, Check, ExternalLink, Image as ImageIcon, Code, Link2, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { exportChartAsPNG, buildEmbedURL, buildEmbedSnippet } from '@/lib/chartExport';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
-/**
- * Share модал — URL хуваалцах + PNG татах + iframe embed код.
- */
 export default function ShareModal() {
   const [open, setOpen] = useState(false);
-  const [copied, setCopied] = useState<'url' | 'embed' | null>(null);
   const [tab, setTab] = useState<'url' | 'embed' | 'png'>('url');
   const [url, setUrl] = useState('');
   const [embedUrl, setEmbedUrl] = useState('');
   const [embedCode, setEmbedCode] = useState('');
   const [pngStatus, setPngStatus] = useState<'idle' | 'working' | 'done' | 'error'>('idle');
-  const [pngError, setPngError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -24,35 +31,32 @@ export default function ShareModal() {
       const q = sp.get('q') ?? '';
       setEmbedUrl(buildEmbedURL(q));
       setEmbedCode(buildEmbedSnippet(q));
-      setCopied(null);
       setPngStatus('idle');
-      setPngError(null);
     }
   }, [open]);
 
-  const copy = async (text: string, kind: 'url' | 'embed') => {
+  const copy = async (text: string, label: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      setCopied(kind);
-      setTimeout(() => setCopied(null), 2000);
+      toast.success(`${label} хуулагдсан`);
     } catch {
-      // ignore
+      toast.error('Хуулж чадсангүй');
     }
   };
 
   const downloadPNG = async () => {
-    setPngStatus('working'); setPngError(null);
+    setPngStatus('working');
     try {
-      // Recharts ResponsiveContainer-ийн нэг л зураг хайна
       const charts = document.querySelectorAll('.recharts-responsive-container');
       const target = (charts[0] ?? document.querySelector('svg')) as HTMLElement | null;
       if (!target) throw new Error('Графикийн SVG олдсонгүй');
       await exportChartAsPNG(target, `mongolia-chart-${Date.now()}.png`);
       setPngStatus('done');
+      toast.success('PNG татагдсан');
       setTimeout(() => setPngStatus('idle'), 2500);
     } catch (e) {
       setPngStatus('error');
-      setPngError(e instanceof Error ? e.message : 'Алдаа');
+      toast.error(e instanceof Error ? e.message : 'PNG татаж чадсангүй');
     }
   };
 
@@ -62,221 +66,141 @@ export default function ShareModal() {
   const ln = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`;
 
   return (
-    <>
-      <button
-        onClick={() => setOpen(true)}
-        className="btn-ghost"
-        title="Энэ query-г хуваалцах / татах"
-        style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-      >
-        <Share2 size={12} /> Хуваалцах
-      </button>
-
-      {open && (
-        <div
-          onClick={() => setOpen(false)}
-          style={{
-            position: 'fixed', inset: 0, zIndex: 200,
-            background: 'rgba(0,0,0,0.6)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            padding: 24,
-          }}
-        >
-          <div
-            onClick={e => e.stopPropagation()}
-            style={{
-              background: '#0c1322',
-              border: '1px solid #1a2d4a',
-              borderRadius: 14,
-              maxWidth: 560, width: '100%',
-              boxShadow: '0 30px 80px rgba(0,0,0,0.6)',
-            }}
-          >
-            <div style={{
-              padding: '14px 20px',
-              borderBottom: '1px solid #1a2d4a',
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Share2 size={15} color="#22c55e" />
-                <h3 style={{ fontSize: 14, fontWeight: 700, color: '#e2e8f0' }}>
-                  Хуваалцах
-                </h3>
-              </div>
+    <TooltipProvider delayDuration={150}>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <DialogTrigger asChild>
               <button
-                onClick={() => setOpen(false)}
-                style={{ background: 'none', border: 0, color: '#64748b', cursor: 'pointer' }}
+                className="icon-btn h-8 w-8 inline-flex items-center justify-center"
+                aria-label="Share"
               >
-                <X size={18} />
+                <Share2 size={14} />
               </button>
-            </div>
+            </DialogTrigger>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Хуваалцах</TooltipContent>
+        </Tooltip>
 
-            {/* Tabs */}
-            <div style={{ display: 'flex', borderBottom: '1px solid #1a2d4a' }}>
-              {([
-                ['url', 'URL', Share2],
-                ['embed', 'Embed', Code],
-                ['png', 'PNG', ImageIcon],
-              ] as const).map(([key, label, Icon]) => (
-                <button
-                  key={key}
-                  onClick={() => setTab(key)}
-                  style={{
-                    flex: 1, padding: '10px 14px',
-                    background: tab === key ? '#0d1424' : 'transparent',
-                    border: 0,
-                    borderBottom: tab === key ? '2px solid #22c55e' : '2px solid transparent',
-                    color: tab === key ? '#e2e8f0' : '#64748b',
-                    cursor: 'pointer',
-                    fontSize: 12, fontWeight: 600,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                  }}
-                >
-                  <Icon size={12} /> {label}
-                </button>
-              ))}
-            </div>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Share2 size={16} className="text-accent" />
+              Хуваалцах
+            </DialogTitle>
+            <DialogDescription>
+              URL, embed код, эсвэл PNG зураг гэсэн 3 аргаар хуваалцах боломжтой.
+            </DialogDescription>
+          </DialogHeader>
 
-            <div style={{ padding: 20 }}>
-              {tab === 'url' && (
-                <>
-                  <p style={{ color: '#94a3b8', fontSize: 12.5, marginBottom: 12, lineHeight: 1.6 }}>
-                    Энэ link-ийг хуваалцахад хүлээн авагч ижил SQL query + chart-ыг харна.
-                  </p>
-                  <UrlBox value={url} copied={copied === 'url'} onCopy={() => copy(url, 'url')} />
-                  <div style={{ marginTop: 16 }}>
-                    <div style={{ fontSize: 10.5, color: '#64748b', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                      Социал сүлжээ
-                    </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <ShareLink href={fb} label="Facebook" color="#1877F2" />
-                      <ShareLink href={tw} label="Twitter / X" color="#000000" />
-                      <ShareLink href={ln} label="LinkedIn" color="#0A66C2" />
-                    </div>
-                  </div>
-                </>
-              )}
+          <Tabs value={tab} onValueChange={(v) => setTab(v as 'url' | 'embed' | 'png')}>
+            <TabsList className="w-full grid grid-cols-3">
+              <TabsTrigger value="url"><Link2 size={11} /> URL</TabsTrigger>
+              <TabsTrigger value="embed"><Code size={11} /> Embed</TabsTrigger>
+              <TabsTrigger value="png"><ImageIcon size={11} /> PNG</TabsTrigger>
+            </TabsList>
 
-              {tab === 'embed' && (
-                <>
-                  <p style={{ color: '#94a3b8', fontSize: 12.5, marginBottom: 12, lineHeight: 1.6 }}>
-                    Сэтгүүлчид нийтлэлд оруулахад: HTML iframe код. ikon.mn, news.mn гэх мэт сайтад copy/paste.
-                  </p>
-                  <UrlBox value={embedUrl} copied={false} onCopy={() => copy(embedUrl, 'url')} />
-                  <div style={{ height: 12 }} />
-                  <CodeBox value={embedCode} copied={copied === 'embed'} onCopy={() => copy(embedCode, 'embed')} />
-                  <div style={{ marginTop: 12, padding: 10, background: 'rgba(34,197,94,0.05)', border: '1px solid rgba(34,197,94,0.15)', borderRadius: 8 }}>
-                    <div style={{ fontSize: 11, color: '#86efac', marginBottom: 4, fontWeight: 600 }}>Жишээ хэрэглээ</div>
-                    <div style={{ fontSize: 11, color: '#94a3b8', lineHeight: 1.5 }}>
-                      WordPress, Webflow, ihmi.mn зэрэг CMS-д шууд оруулна. Embed нь өөрөө ҮСХ-ын эх сурвалжийг харуулна.
-                    </div>
-                  </div>
-                </>
-              )}
+            <TabsContent value="url" className="space-y-4">
+              <p className="text-[12.5px] text-muted-foreground leading-relaxed">
+                Энэ link-ийг хуваалцахад хүлээн авагч ижил SQL query + chart-ыг харна.
+              </p>
+              <UrlBox value={url} onCopy={() => copy(url, 'URL')} />
+              <div className="space-y-2">
+                <div className="label-upper">Социал сүлжээ</div>
+                <div className="flex gap-2">
+                  <ShareLink href={fb} label="Facebook" color="#1877F2" />
+                  <ShareLink href={tw} label="Twitter / X" color="#000000" />
+                  <ShareLink href={ln} label="LinkedIn" color="#0A66C2" />
+                </div>
+              </div>
+            </TabsContent>
 
-              {tab === 'png' && (
-                <>
-                  <p style={{ color: '#94a3b8', fontSize: 12.5, marginBottom: 12, lineHeight: 1.6 }}>
-                    Графикийг өндөр чанартай PNG зураг болгож татах. Twitter post, тайланд оруулахад тохиромжтой.
-                  </p>
-                  <button
-                    onClick={downloadPNG}
-                    disabled={pngStatus === 'working'}
-                    style={{
-                      width: '100%',
-                      padding: '12px 16px',
-                      background: pngStatus === 'done' ? '#22c55e' : 'linear-gradient(135deg,#22c55e,#16a34a)',
-                      color: '#fff', border: 0, borderRadius: 10,
-                      fontSize: 13, fontWeight: 700,
-                      cursor: pngStatus === 'working' ? 'wait' : 'pointer',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                    }}
-                  >
-                    {pngStatus === 'working' ? 'Боловсруулж байна...'
-                      : pngStatus === 'done' ? <><Check size={14} /> Татсан</>
-                      : <><ImageIcon size={14} /> PNG татах (2x чанар)</>}
-                  </button>
-                  {pngError && (
-                    <div style={{ marginTop: 10, padding: 10, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, fontSize: 11.5, color: '#fca5a5' }}>
-                      {pngError} — графикыг харуулсны дараа дахин оролдоно уу.
-                    </div>
-                  )}
-                  <div style={{ marginTop: 12, fontSize: 11, color: '#64748b', lineHeight: 1.5 }}>
-                    Зөвлөмж: PNG татахын өмнө график нь дэлгэцэн дээр харагдаж байх ёстой.
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-    </>
+            <TabsContent value="embed" className="space-y-3">
+              <p className="text-[12.5px] text-muted-foreground leading-relaxed">
+                Сэтгүүлчид нийтлэлд оруулахад: HTML iframe код. WordPress, Webflow, news сайтад copy/paste.
+              </p>
+              <UrlBox value={embedUrl} onCopy={() => copy(embedUrl, 'Embed URL')} />
+              <CodeBox value={embedCode} onCopy={() => copy(embedCode, 'Embed код')} />
+              <div className="rounded-lg border border-accent/15 bg-accent-dim p-3">
+                <div className="text-[11px] text-accent font-semibold mb-1">Жишээ хэрэглээ</div>
+                <div className="text-[11px] text-muted-foreground leading-relaxed">
+                  Embed нь өөрөө ҮСХ-ын эх сурвалжийг харуулна.
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="png" className="space-y-3">
+              <p className="text-[12.5px] text-muted-foreground leading-relaxed">
+                Графикийг өндөр чанартай PNG зураг болгож татах. Twitter post, тайланд оруулахад тохиромжтой.
+              </p>
+              <Button
+                onClick={downloadPNG}
+                disabled={pngStatus === 'working'}
+                className="w-full"
+                size="lg"
+              >
+                {pngStatus === 'working' ? (
+                  <Loader2 size={14} className="spin" />
+                ) : pngStatus === 'done' ? (
+                  <Check size={14} />
+                ) : (
+                  <ImageIcon size={14} />
+                )}
+                {pngStatus === 'working' ? 'Боловсруулж байна'
+                  : pngStatus === 'done' ? 'Татсан'
+                    : 'PNG татах (2x чанар)'}
+              </Button>
+              <div className="text-[11px] text-muted-foreground leading-relaxed">
+                Зөвлөмж: PNG татахын өмнө график нь дэлгэцэн дээр харагдаж байх ёстой.
+              </div>
+            </TabsContent>
+          </Tabs>
+        </DialogContent>
+      </Dialog>
+    </TooltipProvider>
   );
 }
 
-function UrlBox({ value, copied, onCopy }: { value: string; copied: boolean; onCopy: () => void }) {
+function UrlBox({ value, onCopy }: { value: string; onCopy: () => void }) {
+  const [copied, setCopied] = useState(false);
+  const handle = () => {
+    onCopy();
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
   return (
-    <div style={{
-      display: 'flex', gap: 8,
-      background: '#060c18',
-      border: '1px solid #1a3050',
-      borderRadius: 9,
-      padding: '4px 4px 4px 12px',
-    }}>
+    <div className="flex gap-2 items-center rounded-lg border border-border bg-surface-darker p-1 pl-3">
       <input
         type="text"
         readOnly
         value={value}
-        onClick={e => e.currentTarget.select()}
-        style={{
-          flex: 1, background: 'transparent', border: 0, color: '#e2e8f0',
-          fontSize: 12, fontFamily: 'monospace', outline: 'none',
-        }}
+        onClick={(e) => e.currentTarget.select()}
+        className="flex-1 min-w-0 bg-transparent border-0 text-foreground text-xs font-mono outline-none"
       />
-      <button
-        onClick={onCopy}
-        style={{
-          background: copied ? '#22c55e' : '#1a3050',
-          color: copied ? '#06120a' : '#e2e8f0',
-          border: 0, borderRadius: 7, padding: '6px 12px',
-          fontSize: 12, fontWeight: 600, cursor: 'pointer',
-          display: 'flex', alignItems: 'center', gap: 4,
-        }}
-      >
+      <Button onClick={handle} size="sm" variant={copied ? 'default' : 'outline'}>
         {copied ? <Check size={12} /> : <Copy size={12} />}
         {copied ? 'Хуулсан' : 'Хуулах'}
-      </button>
+      </Button>
     </div>
   );
 }
 
-function CodeBox({ value, copied, onCopy }: { value: string; copied: boolean; onCopy: () => void }) {
+function CodeBox({ value, onCopy }: { value: string; onCopy: () => void }) {
+  const [copied, setCopied] = useState(false);
+  const handle = () => {
+    onCopy();
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
   return (
-    <div style={{
-      background: '#060c18',
-      border: '1px solid #1a3050',
-      borderRadius: 9,
-      padding: 12,
-      position: 'relative',
-    }}>
-      <pre style={{
-        margin: 0, fontSize: 11, fontFamily: 'monospace', color: '#e2e8f0',
-        whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: 100, overflow: 'auto',
-      }}>{value}</pre>
-      <button
-        onClick={onCopy}
-        style={{
-          position: 'absolute', top: 8, right: 8,
-          background: copied ? '#22c55e' : '#1a3050',
-          color: copied ? '#06120a' : '#e2e8f0',
-          border: 0, borderRadius: 6, padding: '4px 10px',
-          fontSize: 11, fontWeight: 600, cursor: 'pointer',
-          display: 'flex', alignItems: 'center', gap: 4,
-        }}
-      >
+    <div className="relative rounded-lg border border-border bg-surface-darker p-3">
+      <pre className="m-0 text-[11px] font-mono text-foreground whitespace-pre-wrap break-all max-h-24 overflow-auto">
+        {value}
+      </pre>
+      <Button onClick={handle} size="sm" variant={copied ? 'default' : 'outline'} className="absolute top-2 right-2">
         {copied ? <Check size={11} /> : <Copy size={11} />}
         {copied ? 'Хуулсан' : 'Хуулах'}
-      </button>
+      </Button>
     </div>
   );
 }
@@ -287,13 +211,8 @@ function ShareLink({ href, label, color }: { href: string; label: string; color:
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      style={{
-        flex: 1, background: color, color: 'white',
-        textDecoration: 'none', textAlign: 'center',
-        padding: '8px 12px', borderRadius: 7,
-        fontSize: 12, fontWeight: 600,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-      }}
+      className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-white text-[12px] font-semibold transition-opacity hover:opacity-90"
+      style={{ background: color }}
     >
       {label} <ExternalLink size={11} />
     </a>

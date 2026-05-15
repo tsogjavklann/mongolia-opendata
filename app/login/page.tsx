@@ -1,7 +1,15 @@
-import { signIn, auth, authIsConfigured } from '@/auth';
+import { signIn, auth, authIsConfigured, googleEnabled, githubEnabled } from '@/auth';
 import { redirect } from 'next/navigation';
+import { Database, Sparkles, ShieldCheck, Bookmark, History, ArrowLeft, Github } from 'lucide-react';
+import { GoogleIcon } from '@/components/AuthButton';
 
 export const metadata = { title: 'Нэвтрэх — Mongolia OpenData' };
+
+const PERKS = [
+  { Icon: Bookmark, label: 'SQL хадгалах', desc: 'Дуртай query-уудаа нэрлэн хадгална' },
+  { Icon: History, label: 'Cloud түүх', desc: 'Бүх төхөөрөмж дээр түүх синк' },
+  { Icon: ShieldCheck, label: 'Хувийн орчин', desc: 'Зөвхөн та өөрийн өгөгдлийг харна' },
+];
 
 export default async function LoginPage() {
   if (authIsConfigured) {
@@ -9,93 +17,154 @@ export default async function LoginPage() {
     if (session?.user) redirect('/');
   }
 
+  async function googleAction() {
+    'use server';
+    await signIn('google', { redirectTo: '/' });
+  }
+  async function githubAction() {
+    'use server';
+    await signIn('github', { redirectTo: '/' });
+  }
+
   return (
-    <main style={{
-      minHeight: '100vh',
-      display: 'grid',
-      placeItems: 'center',
-      background: 'linear-gradient(180deg, #050a14 0%, #070e1a 50%, #050a14 100%)',
-      color: '#e2e8f0',
-      fontFamily: "'DM Sans', system-ui, sans-serif",
-      padding: 24,
-    }}>
-      <div style={{
-        background: 'rgba(12,19,34,0.85)',
-        backdropFilter: 'blur(16px) saturate(1.5)',
-        border: '1px solid rgba(26,45,74,0.4)',
-        padding: '2.5rem',
-        borderRadius: 14,
-        maxWidth: 420,
-        width: '100%',
-        boxShadow: '0 30px 80px rgba(0,0,0,0.6)',
-      }}>
-        <div style={{
-          width: 48, height: 48, borderRadius: 14,
-          background: 'linear-gradient(135deg, #00d68f 0%, #0080ff 100%)',
-          marginBottom: 20,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 22, fontWeight: 800, color: 'white',
-        }}>M</div>
+    <main className="min-h-screen bg-background text-foreground font-sans flex items-center justify-center p-6">
+      <div className="grid lg:grid-cols-[1.1fr_1fr] w-full max-w-5xl rounded-2xl border border-border bg-card overflow-hidden shadow-floating">
+        {/* ── LEFT: Brand panel ──────────────────────────── */}
+        <div className="relative p-10 lg:p-12 overflow-hidden bg-gradient-to-br from-surface-darker to-surface min-h-[420px]">
+          {/* Decorative gradient blobs */}
+          <div
+            className="pointer-events-none absolute -top-24 -left-24 h-80 w-80 rounded-full opacity-50 blur-3xl"
+            style={{
+              background: 'radial-gradient(circle, var(--c-accent-glow) 0%, transparent 70%)',
+            }}
+          />
+          <div
+            className="pointer-events-none absolute -bottom-24 -right-16 h-72 w-72 rounded-full opacity-40 blur-3xl"
+            style={{
+              background: 'radial-gradient(circle, var(--c-accent2-glow) 0%, transparent 70%)',
+            }}
+          />
 
-        <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 6 }}>
-          Mongolia OpenData
-        </h1>
-        <p style={{ color: '#94a3b8', marginBottom: 28, fontSize: 14, lineHeight: 1.6 }}>
-          SQL query хадгалах болон бусад боломжуудад нэвтэрнэ үү.<br/>
-          Login-гүйгээр ашиглаж бас болно.
-        </p>
+          <div className="relative">
+            <div
+              className="inline-flex h-12 w-12 items-center justify-center rounded-2xl shadow-glow-green"
+              style={{ background: 'linear-gradient(135deg, var(--c-accent), var(--c-accent2))' }}
+            >
+              <Database size={22} className="text-white" strokeWidth={2.5} />
+            </div>
 
-        {authIsConfigured ? (
-          <form action={async () => {
-            'use server';
-            await signIn('google', { redirectTo: '/' });
-          }}>
-            <button type="submit" style={{
-              width: '100%',
-              background: 'white',
-              color: '#0c1322',
-              padding: '12px 16px',
-              border: 0,
-              borderRadius: 10,
-              fontWeight: 700,
-              cursor: 'pointer',
-              fontSize: 14,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-              boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-            }}>
-              <svg width="18" height="18" viewBox="0 0 18 18">
-                <path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 0 0 2.38-5.88c0-.57-.05-.66-.15-1.18z"/>
-                <path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2.04a4.8 4.8 0 0 1-7.18-2.54H1.83v2.07A8 8 0 0 0 8.98 17z"/>
-                <path fill="#FBBC05" d="M4.5 10.48a4.8 4.8 0 0 1 0-3.04V5.37H1.83a8 8 0 0 0 0 7.18l2.67-2.07z"/>
-                <path fill="#EA4335" d="M8.98 4.18c1.17 0 2.23.4 3.06 1.2l2.3-2.3A8 8 0 0 0 1.83 5.37L4.5 7.44a4.77 4.77 0 0 1 4.48-3.26z"/>
-              </svg>
-              Google-ээр нэвтрэх
-            </button>
-          </form>
-        ) : (
-          <div style={{
-            background: 'rgba(251,191,36,0.06)',
-            border: '1px solid rgba(251,191,36,0.3)',
-            color: '#fbbf24',
-            padding: 14,
-            borderRadius: 10,
-            fontSize: 13,
-            lineHeight: 1.6,
-          }}>
-            <strong>Auth тохиргоо хийгдээгүй.</strong>
-            <br />
-            Production-д идэвхжүүлэхийн тулд Vercel env-д AUTH_SECRET,
-            AUTH_GOOGLE_ID, AUTH_GOOGLE_SECRET тавина уу.
+            <h1
+              className="mt-6 text-3xl lg:text-4xl font-display font-extrabold leading-tight tracking-tight text-foreground"
+            >
+              Mongolia
+              <span
+                className="ml-2"
+                style={{
+                  background: 'linear-gradient(135deg, var(--c-accent) 0%, var(--c-accent2) 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                }}
+              >
+                OpenData
+              </span>
+            </h1>
+
+            <p className="mt-3 text-[14px] text-muted-foreground leading-relaxed max-w-sm">
+              ҮСХ-ын 1,282 статистик хүснэгтийг SQL, AI, Python-аар хайж график
+              үүсгэх premium engine.
+            </p>
+
+            <div className="mt-9 space-y-4">
+              {PERKS.map(({ Icon, label, desc }) => (
+                <div key={label} className="flex items-start gap-3">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-dim text-accent flex-shrink-0">
+                    <Icon size={14} />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-display font-semibold text-foreground leading-tight">
+                      {label}
+                    </div>
+                    <div className="text-[12px] text-muted-foreground leading-snug mt-0.5">
+                      {desc}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-10 flex items-center gap-2 text-[10.5px] text-muted-foreground font-mono uppercase tracking-wider">
+              <Sparkles size={11} className="text-accent" />
+              ҮСХ — DATA.1212.MN — 1,282 TABLES
+            </div>
           </div>
-        )}
+        </div>
 
-        <a href="/" style={{
-          display: 'block', textAlign: 'center',
-          marginTop: 16, color: '#64748b',
-          fontSize: 13, textDecoration: 'none',
-        }}>
-          ← Нүүр хуудас
-        </a>
+        {/* ── RIGHT: Auth panel ──────────────────────────── */}
+        <div className="p-10 lg:p-12 flex flex-col">
+          <h2 className="text-2xl font-display font-bold text-foreground">Тавтай морил</h2>
+          <p className="text-[13px] text-muted-foreground mt-1.5">
+            Аккаунтаараа нэвтрэн query-уудаа хадгал.
+          </p>
+
+          {authIsConfigured ? (
+            <div className="space-y-2.5 mt-7">
+              {googleEnabled && (
+                <form action={googleAction}>
+                  <button
+                    type="submit"
+                    className="w-full inline-flex items-center justify-center gap-3 h-12 rounded-xl border border-border bg-surface-darker/60 hover:bg-surface-raised hover:border-accent/40 transition-all text-[14px] font-display font-semibold text-foreground"
+                  >
+                    <GoogleIcon size={20} />
+                    Google-оор үргэлжлүүлэх
+                  </button>
+                </form>
+              )}
+              {githubEnabled && (
+                <form action={githubAction}>
+                  <button
+                    type="submit"
+                    className="w-full inline-flex items-center justify-center gap-3 h-12 rounded-xl border border-border bg-surface-darker/60 hover:bg-surface-raised hover:border-accent/40 transition-all text-[14px] font-display font-semibold text-foreground"
+                  >
+                    <Github size={18} />
+                    GitHub-оор үргэлжлүүлэх
+                  </button>
+                </form>
+              )}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-accent3/30 bg-accent3-dim p-4 mt-7">
+              <div className="text-[13px] text-accent3 font-display font-semibold mb-1">
+                Auth тохиргоо хийгдээгүй
+              </div>
+              <div className="text-[12px] text-muted-foreground leading-relaxed">
+                Production-д идэвхжүүлэхийн тулд env-д{' '}
+                <code className="text-accent2 font-mono">AUTH_SECRET</code>,{' '}
+                <code className="text-accent2 font-mono">AUTH_GOOGLE_ID</code>,{' '}
+                <code className="text-accent2 font-mono">AUTH_GOOGLE_SECRET</code> тавина уу.
+                <br />
+                <br />
+                <strong className="text-foreground">GitHub нэмэх:</strong>{' '}
+                <code className="text-accent2 font-mono">AUTH_GITHUB_ID</code>,{' '}
+                <code className="text-accent2 font-mono">AUTH_GITHUB_SECRET</code>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-auto pt-8 space-y-3">
+            <a
+              href="/"
+              className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground hover:text-accent transition-colors no-underline"
+            >
+              <ArrowLeft size={13} /> Аккаунтгүйгээр үргэлжлүүлэх
+            </a>
+
+            <div className="text-[10.5px] text-muted-foreground/70 font-mono leading-relaxed">
+              Нэвтэрснээр Mongolia OpenData-ийн Үйлчилгээний нөхцөл ба Нууцлалын
+              бодлогыг зөвшөөрсөнд тооцно.
+            </div>
+          </div>
+        </div>
       </div>
     </main>
   );

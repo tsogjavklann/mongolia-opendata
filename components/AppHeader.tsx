@@ -1,20 +1,32 @@
 'use client';
 
-import { Database, Download, Clock, X } from 'lucide-react';
-import { useState, useRef, useEffect } from 'react';
+import { Database, Download, Clock, Search, FileText, FileSpreadsheet, Sparkles } from 'lucide-react';
 import type { HistoryEntry } from '@/lib/types';
 import AuthButton from './AuthButton';
 import SavedQueriesPanel from './SavedQueriesPanel';
 import ShareModal from './ShareModal';
+import { ThemeToggle } from './ThemeToggle';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  DropdownMenuShortcut,
+} from '@/components/ui/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 type Mode = 'guided' | 'sql' | 'tables' | 'compare' | 'r';
 
-const MODE_TABS: { key: Mode; label: string; color: string; glow: string }[] = [
-  { key: 'guided', label: 'Хялбар', color: '#00d68f', glow: 'rgba(0,214,143,0.15)' },
-  { key: 'sql', label: 'SQL', color: '#5b9cf6', glow: 'rgba(91,156,246,0.15)' },
-  { key: 'tables', label: 'Хүснэгт', color: '#f0b040', glow: 'rgba(240,176,64,0.15)' },
-  { key: 'compare', label: 'Харьцуулах', color: '#f472b6', glow: 'rgba(244,114,182,0.15)' },
-  { key: 'r', label: 'Python', color: '#a78bfa', glow: 'rgba(167,139,250,0.15)' },
+const MODE_TABS: { key: Mode; label: string; hint: string }[] = [
+  { key: 'guided', label: 'Хялбар', hint: 'Дэвшилтэт хайлт' },
+  { key: 'sql', label: 'SQL', hint: 'SQL editor' },
+  { key: 'tables', label: 'Хүснэгт', hint: '1,282 ширхэг' },
+  { key: 'compare', label: 'Харьцуулах', hint: 'Хоёр асуулга' },
+  { key: 'r', label: 'Python', hint: 'Pyodide notebook' },
 ];
 
 interface Props {
@@ -28,120 +40,195 @@ interface Props {
   rowCount?: number;
   currentSql?: string;
   onLoadSql?: (sql: string) => void;
+  onOpenCommand?: () => void;
+  onOpenAuthModal?: () => void;
 }
 
-export default function AppHeader({ mode, setMode, history, onHistorySelect, onExport, onExportXLSX, activeTable, rowCount, currentSql, onLoadSql }: Props) {
-  const [showHist, setShowHist] = useState(false);
-  const histRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const h = (e: MouseEvent) => {
-      if (histRef.current && !histRef.current.contains(e.target as Node)) setShowHist(false);
-    };
-    document.addEventListener('mousedown', h);
-    return () => document.removeEventListener('mousedown', h);
-  }, []);
+export default function AppHeader({
+  mode,
+  setMode,
+  history,
+  onHistorySelect,
+  onExport,
+  onExportXLSX,
+  activeTable,
+  rowCount,
+  currentSql,
+  onLoadSql,
+  onOpenCommand,
+  onOpenAuthModal,
+}: Props) {
+  const hasExport = !!(onExport || onExportXLSX);
 
   return (
-    <header className="sticky top-0 z-[100]"
-      style={{
-        background: 'rgba(12,19,34,0.85)',
-        backdropFilter: 'blur(16px) saturate(1.5)',
-        borderBottom: '1px solid rgba(26,45,74,0.4)',
-      }}>
-      <div className="max-w-[1360px] mx-auto px-6 h-[56px] flex items-center gap-4">
-        {/* Logo */}
-        <div className="w-8 h-8 rounded-[10px] flex items-center justify-center flex-shrink-0 shadow-glow-green"
-          style={{ background: 'linear-gradient(135deg, #00d68f 0%, #0080ff 100%)' }}>
-          <Database size={15} color="#fff" strokeWidth={2.5} />
-        </div>
-        <div className="mr-2">
-          <div className="font-display font-bold text-[14.5px] text-ink-100 tracking-tight">Монголын Нээлттэй Өгөгдөл</div>
-          <div className="text-[10px] text-ink-600 font-mono tracking-wider">1212.MN / 1,282 ХҮСНЭГТ</div>
-        </div>
-
-        {/* Mode tabs */}
-        <nav className="ml-2 flex items-center gap-1 p-1 rounded-xl"
-          style={{ background: 'rgba(7,12,24,0.6)', border: '1px solid rgba(26,45,74,0.3)' }}>
-          {MODE_TABS.map(({ key, label, color, glow }) => {
-            const active = mode === key;
-            return (
-              <button key={key} onClick={() => setMode(key)}
-                className="relative px-4 py-[7px] rounded-[10px] border-none cursor-pointer text-[12.5px] font-display font-bold tracking-tight transition-all duration-250"
-                style={{
-                  background: active ? `linear-gradient(135deg, ${color}, ${color}dd)` : 'transparent',
-                  color: active ? '#000' : '#506080',
-                  boxShadow: active ? `0 2px 12px ${glow}` : 'none',
-                }}>
-                {label}
-              </button>
-            );
-          })}
-        </nav>
-
-        {/* Active data indicator */}
-        {activeTable && (
-          <div className="ml-2 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-accent-dim border border-accent/20 max-w-[200px]">
-            <Database size={10} className="text-accent flex-shrink-0" />
-            <span className="text-[10px] text-accent font-mono truncate">{activeTable}</span>
-            {rowCount != null && <span className="text-[9px] text-accent/60 flex-shrink-0">{rowCount.toLocaleString()}</span>}
-          </div>
-        )}
-
-        {/* Right actions */}
-        <div className="ml-auto flex gap-1.5 items-center">
-          {/* Share — modal-той сайжруулсан UX */}
-          <ShareModal />
-
-          {/* History */}
-          <div ref={histRef} className="relative">
-            <button onClick={() => setShowHist(h => !h)} className="btn-ghost">
-              <Clock size={12} /> Түүх
-            </button>
-            {showHist && history.length > 0 && (
-              <div className="absolute right-0 top-[calc(100%+8px)] w-[300px] rounded-2xl z-[200] max-h-[280px] overflow-y-auto"
-                style={{
-                  background: 'rgba(12,19,34,0.95)',
-                  backdropFilter: 'blur(20px)',
-                  border: '1px solid rgba(26,45,74,0.5)',
-                  boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
-                }}>
-                <div className="label-upper p-3 px-4 border-b border-border/40">Хайлтын түүх</div>
-                {history.map((h, i) => (
-                  <button key={i} onClick={() => { onHistorySelect(h); setShowHist(false); }}
-                    className="block w-full text-left px-4 py-2.5 bg-transparent border-none cursor-pointer transition-colors duration-150 hover:bg-accent-dim"
-                    style={{ borderBottom: '1px solid rgba(26,45,74,0.2)' }}>
-                    <div className="text-xs text-ink-300 font-medium">{h.label}</div>
-                    <div className="text-[10px] text-ink-600 mt-0.5 font-mono">{new Date(h.ts).toLocaleString('mn-MN')}</div>
-                  </button>
-                ))}
+    <TooltipProvider delayDuration={150}>
+      <header
+        className="sticky top-0 z-[100] glass"
+        style={{ borderTop: 'none', borderLeft: 'none', borderRight: 'none' }}
+      >
+        <div className="max-w-[1440px] mx-auto px-6 h-14 flex items-center gap-4">
+          {/* ── Logo + wordmark */}
+          <a href="/" className="flex items-center gap-2.5 mr-2 group" aria-label="Home">
+            <div
+              className="w-8 h-8 rounded-[10px] flex items-center justify-center flex-shrink-0 shadow-glow-green transition-transform group-hover:scale-105"
+              style={{
+                background: 'linear-gradient(135deg, var(--c-accent), var(--c-accent2))',
+              }}
+            >
+              <Database size={15} color="#fff" strokeWidth={2.5} />
+            </div>
+            <div className="hide-mobile">
+              <div className="font-display font-bold text-[14px] text-foreground tracking-tight leading-none">
+                Mongolia<span className="text-accent"> · </span>OpenData
               </div>
+              <div className="text-[9.5px] text-muted-foreground font-mono tracking-[0.18em] mt-0.5">
+                1212.MN · 1,282 TABLES
+              </div>
+            </div>
+          </a>
+
+          {/* ── Mode tabs (single-accent design) */}
+          <Tabs value={mode} onValueChange={(v) => setMode(v as Mode)}>
+            <TabsList className="h-9">
+              {MODE_TABS.map(({ key, label, hint }) => (
+                <Tooltip key={key}>
+                  <TooltipTrigger asChild>
+                    <TabsTrigger value={key} className="px-3.5">
+                      {label}
+                    </TabsTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">{hint}</TooltipContent>
+                </Tooltip>
+              ))}
+            </TabsList>
+          </Tabs>
+
+          {/* ── Active table indicator */}
+          {activeTable && (
+            <div className="hide-mobile flex items-center gap-1.5 max-w-[220px]">
+              <Badge variant="default" className="gap-1.5 py-1 px-2.5">
+                <Database size={9} />
+                <span className="truncate">{activeTable}</span>
+                {rowCount != null && (
+                  <span className="text-accent/60 font-mono">
+                    {rowCount.toLocaleString()}
+                  </span>
+                )}
+              </Badge>
+            </div>
+          )}
+
+          {/* ── Right cluster */}
+          <div className="ml-auto flex items-center gap-1">
+            {/* Command palette */}
+            {onOpenCommand && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={onOpenCommand}
+                    className="hidden sm:flex items-center gap-2 h-8 px-2.5 rounded-lg border border-border bg-surface-darker/60 hover:bg-surface-raised transition-colors text-xs text-muted-foreground"
+                  >
+                    <Search size={12} />
+                    <span className="font-mono text-[11px]">Хайх...</span>
+                    <kbd className="ml-2 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-mono bg-surface-overlay text-foreground border border-border">
+                      <Sparkles size={9} className="text-accent" /> K
+                    </kbd>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  Команд цонх <span className="ml-1 opacity-60">⌘K</span>
+                </TooltipContent>
+              </Tooltip>
             )}
+
+            {/* History */}
+            <DropdownMenu>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenuTrigger asChild>
+                    <button className="icon-btn h-8 w-8 inline-flex items-center justify-center" aria-label="History">
+                      <Clock size={14} />
+                    </button>
+                  </DropdownMenuTrigger>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Хайлтын түүх</TooltipContent>
+              </Tooltip>
+              <DropdownMenuContent align="end" className="w-[320px]">
+                <DropdownMenuLabel>Хайлтын түүх</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {history.length === 0 && (
+                  <div className="px-2 py-6 text-center text-xs text-muted-foreground">
+                    Хоосон. SQL ажиллуулсны дараа энд харагдана.
+                  </div>
+                )}
+                {history.slice(0, 12).map((h, i) => (
+                  <DropdownMenuItem
+                    key={i}
+                    onSelect={() => onHistorySelect(h)}
+                    className="flex flex-col items-start gap-0.5 py-2"
+                  >
+                    <div className="text-xs font-medium text-foreground line-clamp-1">{h.label}</div>
+                    <div className="text-[10px] text-muted-foreground font-mono">
+                      {new Date(h.ts).toLocaleString('mn-MN')}
+                    </div>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Exports — combined dropdown */}
+            {hasExport && (
+              <DropdownMenu>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DropdownMenuTrigger asChild>
+                      <button className="icon-btn h-8 w-8 inline-flex items-center justify-center" aria-label="Export">
+                        <Download size={14} />
+                      </button>
+                    </DropdownMenuTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">Экспортлох</TooltipContent>
+                </Tooltip>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Үр дүн татах</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {onExport && (
+                    <DropdownMenuItem onSelect={onExport}>
+                      <FileText size={14} className="text-muted-foreground" />
+                      CSV (UTF-8)
+                      <DropdownMenuShortcut>.csv</DropdownMenuShortcut>
+                    </DropdownMenuItem>
+                  )}
+                  {onExportXLSX && (
+                    <DropdownMenuItem onSelect={onExportXLSX}>
+                      <FileSpreadsheet size={14} className="text-muted-foreground" />
+                      Excel
+                      <DropdownMenuShortcut>.xlsx</DropdownMenuShortcut>
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
+            {/* Saved queries */}
+            {currentSql !== undefined && onLoadSql && (
+              <SavedQueriesPanel currentSql={currentSql} onLoad={onLoadSql} />
+            )}
+
+            {/* Share */}
+            <ShareModal />
+
+            {/* Theme toggle */}
+            <ThemeToggle />
+
+            {/* Divider */}
+            <div className="w-px h-6 bg-border mx-1" />
+
+            {/* Auth */}
+            <AuthButton onOpenAuthModal={onOpenAuthModal} />
           </div>
-
-          {/* CSV Export */}
-          {onExport && (
-            <button onClick={onExport} className="btn-ghost" title="CSV формат — Excel-д Mongolian char-аар нээх">
-              <Download size={12} /> CSV
-            </button>
-          )}
-
-          {/* Excel (.xlsx) Export */}
-          {onExportXLSX && (
-            <button onClick={onExportXLSX} className="btn-ghost" title="Excel-ийн жинхэн .xlsx файл — шууд нээгдэнэ">
-              <Download size={12} /> Excel
-            </button>
-          )}
-
-          {/* Saved queries */}
-          {currentSql !== undefined && onLoadSql && (
-            <SavedQueriesPanel currentSql={currentSql} onLoad={onLoadSql} />
-          )}
-
-          {/* Auth — Sign in / Sign out */}
-          <AuthButton />
         </div>
-      </div>
-    </header>
+      </header>
+    </TooltipProvider>
   );
 }

@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { BarChart2, Table2, BookOpen, RefreshCw } from 'lucide-react';
+import { BarChart2, Table2, BookOpen, Loader2 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import type { QueryResult } from '@/lib/types';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export type { QueryResult } from '@/lib/types';
 
@@ -21,40 +23,64 @@ function LoadingSkeleton() {
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
-    const timer = setInterval(() => setElapsed(e => e + 1), 1000);
+    const timer = setInterval(() => setElapsed((e) => e + 1), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  const stage = elapsed < 3 ? '1212.mn-аас өгөгдөл татаж байна'
-    : elapsed < 8 ? 'PX-Web хариу хүлээж байна'
-    : elapsed < 20 ? 'json-stat2 хөрвүүлж DuckDB-д ачаалж байна'
-    : 'Сервер удаан хариу өгч байна — түр хүлээгээрэй';
+  const stage =
+    elapsed < 3
+      ? '1212.mn-аас өгөгдөл татаж байна'
+      : elapsed < 8
+        ? 'PX-Web хариу хүлээж байна'
+        : elapsed < 20
+          ? 'json-stat2 хөрвүүлж DuckDB-д ачаалж байна'
+          : 'Сервер удаан хариу өгч байна — түр хүлээгээрэй';
 
   return (
-    <div className="card">
+    <div className="rounded-card border border-border bg-card p-5 fade-up">
       {/* Progress header */}
       <div className="flex items-center gap-3 mb-4">
-        <RefreshCw size={16} className="text-accent spin" />
-        <div>
-          <div className="text-sm text-ink-400">{stage}</div>
-          <div className="text-[11px] text-ink-600 mt-0.5">
+        <Loader2 size={16} className="text-accent spin" />
+        <div className="flex-1 min-w-0">
+          <div className="text-sm text-foreground font-display font-semibold truncate">{stage}</div>
+          <div className="text-[11px] text-muted-foreground mt-0.5 font-mono">
             {elapsed}с өнгөрлөө {elapsed > 10 && '· ихэвчлэн 30-60с'}
           </div>
         </div>
+        <div className="text-[10px] text-muted-foreground font-mono uppercase tracking-wider">
+          DuckDB
+        </div>
       </div>
       {/* Progress bar */}
-      <div className="w-full h-1 bg-border rounded-full overflow-hidden mb-4">
-        <div className="h-full bg-accent rounded-full transition-all duration-1000 ease-out"
-          style={{ width: `${Math.min(92, (elapsed / 50) * 100)}%` }} />
+      <div className="w-full h-1 bg-border/40 rounded-full overflow-hidden mb-5">
+        <div
+          className="h-full bg-gradient-to-r from-accent to-accent-hover rounded-full transition-all duration-1000 ease-out"
+          style={{ width: `${Math.min(92, (elapsed / 50) * 100)}%` }}
+        />
       </div>
-      {/* Chart skeleton */}
-      <div className="skeleton w-full rounded-lg" style={{ height: 240 }}>
-        <div className="flex items-end justify-around h-full px-8 pb-6 pt-10 gap-3">
-          {[60, 85, 45, 70, 90, 55, 75, 40, 65, 80].map((h, i) => (
-            <div key={i} className="skeleton rounded-t flex-1" style={{ height: `${h}%`, opacity: 0.3 }} />
+      {/* Skeleton chart */}
+      <div className="space-y-3">
+        <div className="flex items-end justify-around h-[200px] gap-2 px-4">
+          {[60, 85, 45, 70, 90, 55, 75, 40, 65, 80, 50, 78].map((h, i) => (
+            <Skeleton key={i} className="flex-1 rounded-t-md" style={{ height: `${h}%` }} />
+          ))}
+        </div>
+        <div className="flex justify-between px-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-2 w-10" />
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+function EmptyDataState() {
+  return (
+    <div className="text-center py-12 text-muted-foreground">
+      <BarChart2 size={32} className="mx-auto mb-2 opacity-20" />
+      <div className="text-sm font-display font-semibold">Өгөгдөл олдсонгүй</div>
+      <div className="text-xs mt-1.5 opacity-60">Шүүлтийн нөхцөлөө шалгана уу</div>
     </div>
   );
 }
@@ -64,62 +90,82 @@ export default function ResultsPanel({ result, loading, tab, setTab }: Props) {
   if (!result) return null;
 
   return (
-    <div className="animate-fade-up">
-      {/* Tab switcher */}
-      <div className="flex bg-surface-dark border border-border rounded-lg p-[3px] gap-0.5 w-fit mb-3">
-        {([['chart', BarChart2, 'График'], ['table', Table2, 'Хүснэгт'], ['explain', BookOpen, 'Тайлбар']] as const).map(([t, Icon, label]) => (
-          <button key={t} onClick={() => setTab(t)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border-none cursor-pointer text-xs font-semibold transition-all duration-150"
-            style={{
-              background: tab === t ? '#00c87a' : 'transparent',
-              color: tab === t ? '#000' : '#475569',
-            }}>
-            <Icon size={13} />{label}
-          </button>
-        ))}
-      </div>
+    <div className="fade-up">
+      <Tabs value={tab} onValueChange={(v) => setTab(v as Props['tab'])}>
+        <TabsList>
+          <TabsTrigger value="chart">
+            <BarChart2 size={12} />
+            График
+          </TabsTrigger>
+          <TabsTrigger value="table">
+            <Table2 size={12} />
+            Хүснэгт
+          </TabsTrigger>
+          <TabsTrigger value="explain">
+            <BookOpen size={12} />
+            Тайлбар
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Chart view */}
-      {tab === 'chart' && (
-        <div className="card">
-          {result.rows.length > 0
-            ? <DataChart rows={result.rows} />
-            : (
-              <div className="text-center py-9 text-ink-700">
-                <BarChart2 size={26} className="mx-auto mb-2 opacity-20" />
-                <div className="text-[13px]">Өгөгдөл олдсонгүй</div>
+        <TabsContent value="chart">
+          <div className="rounded-card border border-border bg-card p-5">
+            {result.rows.length > 0 ? <DataChart rows={result.rows} /> : <EmptyDataState />}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="table">
+          <div className="rounded-card border border-border bg-card overflow-hidden">
+            {result.rows.length > 0 ? <DataTable rows={result.rows} /> : <EmptyDataState />}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="explain">
+          {result.explain ? (
+            <div className="rounded-card border border-border bg-card p-5 space-y-3">
+              <div className="label-upper">Тайлбар</div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="rounded-lg border border-border bg-surface-darker/40 p-3">
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-mono mb-1">
+                    Хүснэгт
+                  </div>
+                  <div className="text-[13px] text-foreground font-mono break-all">
+                    {result.explain.table}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-border bg-surface-darker/40 p-3">
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-mono mb-1">
+                    Хязгаар
+                  </div>
+                  <div className="text-[13px] text-accent3 font-mono">
+                    {result.explain.limit.toLocaleString()} мөр
+                  </div>
+                </div>
               </div>
-            )}
-        </div>
-      )}
 
-      {/* Table view — now with full DataTable component */}
-      {tab === 'table' && (
-        <div className="card p-0 overflow-hidden">
-          <DataTable rows={result.rows} />
-        </div>
-      )}
-
-      {/* Explain view */}
-      {tab === 'explain' && result.explain && (
-        <div className="p-3.5 px-4 bg-accent2/5 rounded-card border border-accent2/10">
-          <div className="label-upper mb-2.5">Тайлбар</div>
-          <div className="text-[13px] text-ink-400 mb-1.5">
-            <span className="text-accent2 font-semibold">Хүснэгт: </span>{result.explain.table}
-          </div>
-          {result.explain.filters.map((f, i) => (
-            <div key={i} className="text-[13px] text-ink-400 mb-1">
-              <span className="text-accent font-semibold">Шүүлт {i + 1}: </span>{f}
+              {result.explain.filters.length > 0 ? (
+                <div className="rounded-lg border border-border bg-surface-darker/40 p-3">
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-mono mb-2">
+                    Шүүлтүүд ({result.explain.filters.length})
+                  </div>
+                  <ul className="space-y-1">
+                    {result.explain.filters.map((f, i) => (
+                      <li key={i} className="text-[12.5px] text-foreground font-mono">
+                        <span className="text-accent mr-1.5">▸</span>
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <div className="text-xs text-muted-foreground">Шүүлтгүй — бүх өгөгдлийг татсан</div>
+              )}
             </div>
-          ))}
-          {!result.explain.filters.length && (
-            <div className="text-xs text-ink-700">Шүүлтгүй — бүх өгөгдлийг татсан</div>
+          ) : (
+            <EmptyDataState />
           )}
-          <div className="text-[13px] text-ink-400 mt-1">
-            <span className="text-accent3 font-semibold">Хязгаар: </span>{result.explain.limit.toLocaleString()} мөр
-          </div>
-        </div>
-      )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

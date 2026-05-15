@@ -2,9 +2,19 @@
 
 import { useState, useRef, useEffect } from 'react';
 import {
-  Sparkles, ArrowRight, Loader2, AlertCircle,
-  Code2, Table2, GitCompare, FileCode2, Copy, Check, X,
+  Sparkles,
+  ArrowRight,
+  Loader2,
+  AlertCircle,
+  Code2,
+  Table2,
+  GitCompare,
+  FileCode2,
+  Copy,
+  Check,
+  X,
 } from 'lucide-react';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 const SAMPLE_QUESTIONS: Record<AIFormat, string[]> = {
   sql: [
@@ -31,10 +41,10 @@ const SAMPLE_QUESTIONS: Record<AIFormat, string[]> = {
 };
 
 const FORMATS = [
-  { key: 'sql', label: 'SQL', icon: Code2, color: '#5b9cf6', desc: 'Query + автомат график' },
-  { key: 'table', label: 'Хүснэгт', icon: Table2, color: '#f0b040', desc: 'Tabular үр дүн' },
-  { key: 'compare', label: 'Харьцуулах', icon: GitCompare, color: '#f472b6', desc: 'Хоёр query side-by-side' },
-  { key: 'python', label: 'Python', icon: FileCode2, color: '#a78bfa', desc: 'pandas + matplotlib код' },
+  { key: 'sql', label: 'SQL', Icon: Code2, desc: 'Query + автомат график' },
+  { key: 'table', label: 'Хүснэгт', Icon: Table2, desc: 'Tabular үр дүн' },
+  { key: 'compare', label: 'Харьцуулах', Icon: GitCompare, desc: 'Хоёр query side-by-side' },
+  { key: 'python', label: 'Python', Icon: FileCode2, desc: 'pandas + matplotlib код' },
 ] as const;
 
 type AIFormat = typeof FORMATS[number]['key'];
@@ -52,9 +62,10 @@ export interface AIResult {
 
 interface Props {
   onResult: (result: AIResult) => void;
+  large?: boolean;
 }
 
-export default function AskAI({ onResult }: Props) {
+export default function AskAI({ onResult, large = false }: Props) {
   const [format, setFormat] = useState<AIFormat>('sql');
   const [question, setQuestion] = useState('');
   const [loading, setLoading] = useState(false);
@@ -76,7 +87,8 @@ export default function AskAI({ onResult }: Props) {
   const ask = async (q?: string) => {
     const text = (q ?? question).trim();
     if (!text || loading) return;
-    setLoading(true); setError(null);
+    setLoading(true);
+    setError(null);
     try {
       const res = await fetch('/api/ai/sql', {
         method: 'POST',
@@ -106,105 +118,94 @@ export default function AskAI({ onResult }: Props) {
     }
   };
 
-  const activeFormat = FORMATS.find(f => f.key === format)!;
-
   return (
     <div
-      className="rounded-2xl p-5 mb-6"
-      style={{
-        background: `linear-gradient(135deg, ${activeFormat.color}11, ${activeFormat.color}08)`,
-        border: `1px solid ${activeFormat.color}33`,
-        boxShadow: `0 4px 30px ${activeFormat.color}11`,
-        transition: 'background 0.3s, border-color 0.3s',
-      }}
+      className={
+        large
+          ? 'relative rounded-2xl border border-border bg-card/40 shadow-elevated p-6 backdrop-blur'
+          : 'relative rounded-2xl border border-border bg-card/40 p-5'
+      }
     >
-      <div className="flex items-center gap-2 mb-3">
-        <div
-          className="w-7 h-7 rounded-lg flex items-center justify-center"
-          style={{ background: `linear-gradient(135deg,${activeFormat.color},${activeFormat.color}cc)` }}
+      {/* Soft brand glow corner */}
+      <div
+        className="pointer-events-none absolute -top-px -left-px h-32 w-32 rounded-tl-2xl"
+        style={{
+          background:
+            'radial-gradient(ellipse 200px 100px at 0% 0%, var(--c-accent-glow), transparent 70%)',
+        }}
+      />
+
+      {/* Format toggle (single-accent) */}
+      <div className="relative flex items-center justify-between gap-3 mb-4 flex-wrap">
+        <div className="flex items-center gap-2">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent-dim text-accent">
+            <Sparkles size={14} strokeWidth={2.5} />
+          </div>
+          <div>
+            <div className="text-[13px] font-display font-bold text-foreground leading-none">
+              Монголоор асуу
+            </div>
+            <div className="text-[10px] text-muted-foreground font-mono mt-1">
+              AI ТАНЫ АСУУЛТЫГ {format.toUpperCase()} БОЛГОНО
+            </div>
+          </div>
+        </div>
+
+        <ToggleGroup
+          type="single"
+          value={format}
+          onValueChange={(v) => v && setFormat(v as AIFormat)}
         >
-          <Sparkles size={14} color="#fff" strokeWidth={2.5} />
-        </div>
-        <div>
-          <div className="text-[13px] font-display font-bold text-ink-100">Монголоор асуу</div>
-          <div className="text-[10px] text-ink-600 font-mono">AI ТАНЫ АСУУЛТЫГ {activeFormat.label.toUpperCase()} БОЛГОНО</div>
-        </div>
+          {FORMATS.map(({ key, label, Icon, desc }) => (
+            <ToggleGroupItem key={key} value={key} aria-label={label} title={desc}>
+              <Icon size={11} />
+              <span>{label}</span>
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
       </div>
 
-      {/* Format selector chips */}
-      <div className="flex gap-1.5 mb-3 flex-wrap">
-        {FORMATS.map(f => {
-          const active = f.key === format;
-          const Icon = f.icon;
-          return (
-            <button
-              key={f.key}
-              onClick={() => setFormat(f.key)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-all"
-              style={{
-                background: active ? `${f.color}22` : 'rgba(7,12,24,0.4)',
-                border: `1px solid ${active ? f.color : 'rgba(26,45,74,0.3)'}`,
-                color: active ? f.color : '#64748b',
-                fontSize: 11,
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
-              title={f.desc}
-            >
-              <Icon size={12} /> {f.label}
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="flex gap-2">
-        <div className="flex-1 relative">
-          <input
-            ref={inputRef}
-            type="text"
-            value={question}
-            onChange={e => setQuestion(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && ask()}
-            disabled={loading}
-            placeholder={hint ?? 'Асуултаа Монголоор бичнэ үү...'}
-            className="w-full px-4 py-3 rounded-xl text-[14px] outline-none transition-all"
-            style={{
-              background: 'rgba(7,12,24,0.7)',
-              border: `1px solid ${activeFormat.color}44`,
-              color: '#e2e8f0',
-            }}
-          />
-        </div>
+      {/* Input + button */}
+      <div className="relative flex gap-2">
+        <input
+          ref={inputRef}
+          type="text"
+          value={question}
+          onChange={(e) => setQuestion(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && ask()}
+          disabled={loading}
+          placeholder={hint ?? 'Асуултаа Монголоор бичнэ үү...'}
+          className={
+            large
+              ? 'flex-1 min-w-0 rounded-xl border border-border bg-surface-darker/70 px-4 py-3.5 text-[15px] font-sans text-foreground placeholder:text-ink-500 outline-none transition-all focus:border-accent focus:shadow-[0_0_0_3px_var(--c-accent-dim),0_0_24px_var(--c-accent-glow)]'
+              : 'flex-1 min-w-0 rounded-xl border border-border bg-surface-darker/70 px-4 py-3 text-sm font-sans text-foreground placeholder:text-ink-500 outline-none transition-all focus:border-accent focus:shadow-[0_0_0_3px_var(--c-accent-dim)]'
+          }
+        />
         <button
           onClick={() => ask()}
           disabled={loading || !question.trim()}
-          className="px-5 rounded-xl font-bold text-[13px] flex items-center gap-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+          className="inline-flex items-center gap-2 rounded-xl px-5 font-display font-bold text-sm text-primary-foreground transition-all disabled:opacity-40 disabled:cursor-not-allowed"
           style={{
-            background: `linear-gradient(135deg,${activeFormat.color},${activeFormat.color}dd)`,
-            color: '#fff',
-            border: 0,
-            cursor: loading ? 'wait' : 'pointer',
+            background: 'linear-gradient(135deg, var(--c-accent), var(--c-accent-hover))',
+            boxShadow: '0 2px 12px var(--c-accent-glow)',
           }}
         >
           {loading ? <Loader2 size={14} className="spin" /> : <ArrowRight size={14} />}
-          {loading ? 'Бодож байна...' : 'Асуух'}
+          {loading ? 'Бодож байна' : 'Асуух'}
         </button>
       </div>
 
       {/* Sample chips */}
       {!question && !loading && (
-        <div className="flex flex-wrap gap-1.5 mt-3">
-          {SAMPLE_QUESTIONS[format].slice(0, 3).map(q => (
+        <div className="relative flex flex-wrap gap-1.5 mt-3">
+          {SAMPLE_QUESTIONS[format].slice(0, 3).map((q) => (
             <button
               key={q}
-              onClick={() => { setQuestion(q); ask(q); }}
-              className="text-[11px] px-2.5 py-1 rounded-full transition-colors"
-              style={{
-                background: `${activeFormat.color}11`,
-                border: `1px solid ${activeFormat.color}33`,
-                color: activeFormat.color,
-                cursor: 'pointer',
+              onClick={() => {
+                setQuestion(q);
+                ask(q);
               }}
+              className="text-[11px] px-2.5 py-1 rounded-full border border-border bg-surface-raised text-muted-foreground transition-colors hover:border-accent hover:text-accent hover:bg-accent-dim"
             >
               {q}
             </button>
@@ -213,9 +214,9 @@ export default function AskAI({ onResult }: Props) {
       )}
 
       {error && (
-        <div className="mt-3 flex items-start gap-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20">
-          <AlertCircle size={13} className="text-red-400 flex-shrink-0 mt-0.5" />
-          <span className="text-[12px] text-red-300">{error}</span>
+        <div className="relative mt-3 flex items-start gap-2 px-3 py-2 rounded-lg bg-destructive/10 border border-destructive/20">
+          <AlertCircle size={13} className="text-destructive flex-shrink-0 mt-0.5" />
+          <span className="text-[12px] text-destructive">{error}</span>
         </div>
       )}
     </div>
@@ -235,108 +236,66 @@ export function PythonModal({ result, onClose }: { result: AIResult | null; onCl
       await navigator.clipboard.writeText(result.python!);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   };
 
   return (
     <div
       onClick={onClose}
-      style={{
-        position: 'fixed', inset: 0, zIndex: 200,
-        background: 'rgba(0,0,0,0.7)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: 24,
-      }}
+      className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/70 backdrop-blur-sm"
     >
       <div
-        onClick={e => e.stopPropagation()}
-        style={{
-          background: '#0c1322',
-          border: '1px solid #1a2d4a',
-          borderRadius: 14,
-          maxWidth: 760, width: '100%', maxHeight: '85vh',
-          display: 'flex', flexDirection: 'column',
-          boxShadow: '0 30px 80px rgba(0,0,0,0.6)',
-        }}
+        onClick={(e) => e.stopPropagation()}
+        className="bg-popover border border-border rounded-2xl max-w-3xl w-full max-h-[85vh] flex flex-col shadow-floating"
       >
-        <div style={{
-          padding: '14px 20px',
-          borderBottom: '1px solid #1a2d4a',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <FileCode2 size={16} color="#a78bfa" />
-            <h3 style={{ fontSize: 14, fontWeight: 700, color: '#e2e8f0', margin: 0 }}>
-              Python код
-            </h3>
-            <span style={{ fontSize: 10, color: '#64748b', fontFamily: 'monospace' }}>
+        <div className="px-5 py-3.5 border-b border-border flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <FileCode2 size={16} className="text-accent2" />
+            <h3 className="text-sm font-display font-bold text-foreground m-0">Python код</h3>
+            <span className="text-[10px] text-muted-foreground font-mono">
               pandas + matplotlib
             </span>
           </div>
-          <button
-            onClick={onClose}
-            style={{ background: 'none', border: 0, color: '#64748b', cursor: 'pointer' }}
-          >
+          <button onClick={onClose} className="icon-btn">
             <X size={18} />
           </button>
         </div>
 
         {result.explanation && (
-          <div style={{
-            padding: '12px 20px',
-            borderBottom: '1px solid #1a2d4a',
-            color: '#94a3b8',
-            fontSize: 12.5,
-            lineHeight: 1.6,
-          }}>
+          <div className="px-5 py-3 border-b border-border text-muted-foreground text-[12.5px] leading-relaxed">
             {result.explanation}
           </div>
         )}
 
-        <div style={{ flex: 1, overflow: 'auto', padding: 16, position: 'relative' }}>
-          <pre style={{
-            margin: 0,
-            background: '#060c18',
-            border: '1px solid #1a3050',
-            borderRadius: 10,
-            padding: 16,
-            fontSize: 12.5,
-            fontFamily: 'JetBrains Mono, monospace',
-            color: '#e2e8f0',
-            lineHeight: 1.55,
-            overflow: 'auto',
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word',
-          }}>{result.python}</pre>
+        <div className="flex-1 overflow-auto p-4 relative">
+          <pre className="m-0 bg-surface-darker border border-border rounded-lg p-4 text-[12.5px] font-mono text-foreground leading-relaxed overflow-auto whitespace-pre-wrap break-words">
+            {result.python}
+          </pre>
           <button
             onClick={copy}
-            style={{
-              position: 'absolute', top: 24, right: 24,
-              background: copied ? '#22c55e' : '#1a3050',
-              color: copied ? '#06120a' : '#e2e8f0',
-              border: 0, borderRadius: 7, padding: '6px 12px',
-              fontSize: 11, fontWeight: 600, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 6,
-            }}
+            className={`absolute top-6 right-6 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold border transition-colors ${
+              copied
+                ? 'bg-accent text-primary-foreground border-accent'
+                : 'bg-surface-raised text-foreground border-border hover:bg-surface-overlay'
+            }`}
           >
             {copied ? <Check size={11} /> : <Copy size={11} />}
             {copied ? 'Хуулсан' : 'Хуулах'}
           </button>
         </div>
 
-        <div style={{
-          padding: '12px 20px',
-          borderTop: '1px solid #1a2d4a',
-          fontSize: 11, color: '#64748b',
-          background: 'rgba(167,139,250,0.04)',
-          lineHeight: 1.7,
-        }}>
+        <div className="px-5 py-3 border-t border-border text-[11px] text-muted-foreground bg-accent-dim leading-relaxed">
           <div>
-            <strong style={{ color: '#cbd5e1' }}>Суулгах:</strong>{' '}
-            <code style={{ color: '#a78bfa' }}>pip install requests pandas matplotlib seaborn scikit-learn statsmodels</code>
+            <strong className="text-foreground">Суулгах:</strong>{' '}
+            <code className="text-accent2">
+              pip install requests pandas matplotlib seaborn scikit-learn statsmodels
+            </code>
           </div>
-          <div style={{ marginTop: 4 }}>
-            Дараа нь .py файлд хуулж <code style={{ color: '#a78bfa' }}>python script.py</code>. ML, прогноз, кластер бүх боломжтой.
+          <div className="mt-1">
+            Дараа нь .py файлд хуулж <code className="text-accent2">python script.py</code>. ML,
+            прогноз, кластер бүх боломжтой.
           </div>
         </div>
       </div>

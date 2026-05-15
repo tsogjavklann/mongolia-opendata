@@ -1,35 +1,51 @@
 import NextAuth from 'next-auth';
 import Google from 'next-auth/providers/google';
+import GitHub from 'next-auth/providers/github';
 
 /**
- * Auth.js v5 (NextAuth) — Google OAuth, JWT session.
+ * Auth.js v5 — Google + GitHub OAuth, JWT session.
  *
- * Production-д шаардлагатай env (Vercel Settings → Environment Variables):
- *   AUTH_SECRET         — `npx auth secret` эсвэл `openssl rand -base64 32`
- *   AUTH_GOOGLE_ID      — Google Cloud Console OAuth Client ID
- *   AUTH_GOOGLE_SECRET  — Google Cloud Console OAuth Client Secret
+ * Production env (Vercel Settings → Environment Variables):
+ *   AUTH_SECRET           — `npx auth secret`
+ *   AUTH_GOOGLE_ID        — Google Cloud Console OAuth Client ID
+ *   AUTH_GOOGLE_SECRET    — Google Cloud Console OAuth Client Secret
+ *   AUTH_GITHUB_ID        — GitHub OAuth App Client ID (optional)
+ *   AUTH_GITHUB_SECRET    — GitHub OAuth App Client Secret (optional)
  *
- * Тохируулагдаагүй (env алгад) бол providers алга, login товч "Тохиргоо
- * хийгдээгүй" гэж заана. Anonymous-ыг дэмжсээр.
+ * Аль ч provider env-гүй бол Anonymous mode-оор ажиллана.
  */
 
-const hasAuthEnv = Boolean(
-  process.env.AUTH_SECRET &&
-  process.env.AUTH_GOOGLE_ID &&
-  process.env.AUTH_GOOGLE_SECRET,
-);
+const hasSecret = Boolean(process.env.AUTH_SECRET);
+const hasGoogle = Boolean(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET);
+const hasGitHub = Boolean(process.env.AUTH_GITHUB_ID && process.env.AUTH_GITHUB_SECRET);
 
-export const authIsConfigured = hasAuthEnv;
+export const authIsConfigured = hasSecret && (hasGoogle || hasGitHub);
+export const googleEnabled = hasSecret && hasGoogle;
+export const githubEnabled = hasSecret && hasGitHub;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const providers: any[] = [];
+
+if (googleEnabled) {
+  providers.push(
+    Google({
+      clientId: process.env.AUTH_GOOGLE_ID!,
+      clientSecret: process.env.AUTH_GOOGLE_SECRET!,
+    }),
+  );
+}
+
+if (githubEnabled) {
+  providers.push(
+    GitHub({
+      clientId: process.env.AUTH_GITHUB_ID!,
+      clientSecret: process.env.AUTH_GITHUB_SECRET!,
+    }),
+  );
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  providers: hasAuthEnv
-    ? [
-        Google({
-          clientId: process.env.AUTH_GOOGLE_ID!,
-          clientSecret: process.env.AUTH_GOOGLE_SECRET!,
-        }),
-      ]
-    : [],
+  providers,
   session: { strategy: 'jwt' },
   trustHost: true,
   pages: { signIn: '/login' },

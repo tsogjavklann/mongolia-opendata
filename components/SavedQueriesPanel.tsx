@@ -1,13 +1,26 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Bookmark, Plus, Trash2, X } from 'lucide-react';
+import { Bookmark, Plus, Trash2, ArrowRight } from 'lucide-react';
+import { toast } from 'sonner';
 import {
   listSavedQueries,
   saveQuery,
   deleteQuery,
   type SavedQuery,
 } from '@/lib/savedQueries';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface Props {
   currentSql: string;
@@ -33,183 +46,147 @@ export default function SavedQueriesPanel({ currentSql, onLoad }: Props) {
     setName('');
     setShowSave(false);
     refresh();
+    toast.success(`"${trimmed}" хадгалагдлаа`);
   };
 
-  const handleDelete = (id: string) => {
-    if (!confirm('Хадгалсан query-г устгах уу?')) return;
+  const handleDelete = (id: string, n: string) => {
+    if (!confirm(`"${n}" query-г устгах уу?`)) return;
     deleteQuery(id);
     refresh();
+    toast.success('Устгасан');
   };
 
   return (
-    <>
-      <button
-        onClick={() => setOpen(true)}
-        className="btn-ghost"
-        title="Хадгалсан SQL query-ууд"
-        style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-      >
-        <Bookmark size={12} /> Хадгалсан
-      </button>
-
-      {open && (
-        <div
-          onClick={() => setOpen(false)}
-          style={{
-            position: 'fixed', inset: 0, zIndex: 200,
-            background: 'rgba(0,0,0,0.6)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            padding: 24,
-          }}
-        >
-          <div
-            onClick={e => e.stopPropagation()}
-            style={{
-              background: '#0c1322',
-              border: '1px solid #1a2d4a',
-              borderRadius: 14,
-              maxWidth: 640, width: '100%',
-              maxHeight: '80vh', display: 'flex', flexDirection: 'column',
-              boxShadow: '0 30px 80px rgba(0,0,0,0.6)',
-            }}
-          >
-            {/* Header */}
-            <div style={{
-              padding: '16px 20px',
-              borderBottom: '1px solid #1a2d4a',
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Bookmark size={16} color="#22c55e" />
-                <h3 style={{ fontSize: 15, fontWeight: 700, color: '#e2e8f0' }}>
-                  Хадгалсан SQL query
-                </h3>
-                <span style={{ fontSize: 12, color: '#64748b' }}>({items.length})</span>
-              </div>
+    <TooltipProvider delayDuration={150}>
+      <Sheet open={open} onOpenChange={setOpen}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <SheetTrigger asChild>
               <button
-                onClick={() => setOpen(false)}
-                style={{ background: 'none', border: 0, color: '#64748b', cursor: 'pointer' }}
+                className="icon-btn h-8 w-8 inline-flex items-center justify-center"
+                aria-label="Saved queries"
               >
-                <X size={18} />
+                <Bookmark size={14} />
               </button>
-            </div>
+            </SheetTrigger>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Хадгалсан SQL</TooltipContent>
+        </Tooltip>
 
-            {/* Save form */}
-            <div style={{ padding: '12px 20px', borderBottom: '1px solid #1a2d4a' }}>
-              {showSave ? (
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <input
-                    autoFocus
-                    type="text"
-                    value={name}
-                    onChange={e => setName(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') setShowSave(false); }}
-                    placeholder="Query-ийн нэр (жш: ДНБ 2020-2024)"
-                    style={{
-                      flex: 1,
-                      background: '#060c18', color: '#e2e8f0',
-                      border: '1px solid #1a3050', borderRadius: 8,
-                      padding: '8px 12px', fontSize: 13, outline: 'none',
-                    }}
-                  />
-                  <button
+        <SheetContent side="right" className="w-[420px] sm:max-w-[420px] p-0 flex flex-col">
+          <SheetHeader className="px-5 py-4 border-b border-border">
+            <SheetTitle className="flex items-center gap-2">
+              <Bookmark size={16} className="text-accent" />
+              Хадгалсан SQL
+              <span className="text-xs text-muted-foreground font-mono">({items.length})</span>
+            </SheetTitle>
+            <SheetDescription>
+              Дахин ашиглах SQL query-уудыг хадгалж нэрлэх боломжтой.
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="px-5 py-3 border-b border-border">
+            {showSave ? (
+              <div className="space-y-2">
+                <Input
+                  autoFocus
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSave();
+                    if (e.key === 'Escape') setShowSave(false);
+                  }}
+                  placeholder="Query-ийн нэр (жш: ДНБ 2020-2024)"
+                />
+                <div className="flex gap-2">
+                  <Button
                     onClick={handleSave}
                     disabled={!name.trim() || !currentSql.trim()}
-                    style={{
-                      background: '#22c55e', color: '#06120a',
-                      padding: '8px 14px', border: 0, borderRadius: 8,
-                      fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                      opacity: (!name.trim() || !currentSql.trim()) ? 0.5 : 1,
-                    }}
+                    size="sm"
+                    className="flex-1"
                   >
                     Хадгалах
-                  </button>
-                  <button
-                    onClick={() => { setShowSave(false); setName(''); }}
-                    style={{
-                      background: 'transparent', color: '#94a3b8',
-                      padding: '8px 12px', border: '1px solid #1a3050', borderRadius: 8,
-                      fontSize: 13, cursor: 'pointer',
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setShowSave(false);
+                      setName('');
                     }}
+                    size="sm"
+                    variant="outline"
                   >
                     Болих
-                  </button>
+                  </Button>
                 </div>
-              ) : (
-                <button
-                  onClick={() => setShowSave(true)}
-                  disabled={!currentSql.trim()}
-                  style={{
-                    background: 'transparent', color: '#22c55e',
-                    border: '1px dashed #22c55e', borderRadius: 8,
-                    padding: '8px 14px', fontSize: 13, fontWeight: 600,
-                    cursor: currentSql.trim() ? 'pointer' : 'not-allowed',
-                    opacity: currentSql.trim() ? 1 : 0.4,
-                    display: 'flex', alignItems: 'center', gap: 6,
-                    width: '100%', justifyContent: 'center',
-                  }}
-                >
-                  <Plus size={14} /> Одоогийн SQL-ийг хадгалах
-                </button>
-              )}
-            </div>
+              </div>
+            ) : (
+              <Button
+                onClick={() => setShowSave(true)}
+                disabled={!currentSql.trim()}
+                size="sm"
+                variant="outline"
+                className="w-full border-dashed border-accent/40 text-accent hover:bg-accent-dim"
+              >
+                <Plus size={14} /> Одоогийн SQL-ийг хадгалах
+              </Button>
+            )}
+          </div>
 
-            {/* List */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
-              {items.length === 0 ? (
-                <div style={{
-                  padding: 32, textAlign: 'center', color: '#64748b', fontSize: 13,
-                }}>
-                  Хадгалсан query байхгүй байна.<br />
-                  SQL бичээд дээрх товчоор хадгалаарай.
-                </div>
-              ) : (
-                items.map(q => (
+          <ScrollArea className="flex-1">
+            {items.length === 0 ? (
+              <div className="p-12 text-center text-muted-foreground text-sm">
+                <Bookmark size={32} className="mx-auto mb-3 opacity-20" />
+                Хадгалсан query байхгүй байна.
+                <br />
+                <span className="text-xs opacity-60">SQL бичээд дээрх товчоор хадгалаарай.</span>
+              </div>
+            ) : (
+              <div className="py-2">
+                {items.map((q) => (
                   <div
                     key={q.id}
-                    style={{
-                      padding: '10px 20px',
-                      borderBottom: '1px solid rgba(26,45,74,0.3)',
-                      display: 'flex', gap: 12, alignItems: 'flex-start',
-                      cursor: 'pointer',
+                    className="group px-5 py-3 border-b border-border/30 hover:bg-accent-dim cursor-pointer transition-colors flex items-start gap-2"
+                    onClick={() => {
+                      onLoad(q.sql);
+                      setOpen(false);
                     }}
-                    onClick={() => { onLoad(q.sql); setOpen(false); }}
-                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(34,197,94,0.04)')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                   >
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{
-                        fontSize: 13, fontWeight: 600, color: '#e2e8f0',
-                        marginBottom: 4,
-                      }}>{q.name}</div>
-                      <div style={{
-                        fontSize: 11, color: '#64748b',
-                        fontFamily: 'monospace',
-                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                      }}>{q.sql.slice(0, 100)}{q.sql.length > 100 ? '...' : ''}</div>
-                      <div style={{ fontSize: 10, color: '#475569', marginTop: 4 }}>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-display font-semibold text-foreground mb-1 truncate flex items-center gap-1.5">
+                        {q.name}
+                        <ArrowRight
+                          size={11}
+                          className="text-accent opacity-0 group-hover:opacity-100 transition-opacity"
+                        />
+                      </div>
+                      <div className="text-[11px] text-muted-foreground font-mono truncate">
+                        {q.sql.slice(0, 100)}
+                        {q.sql.length > 100 ? '…' : ''}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground/60 mt-1 font-mono">
                         {new Date(q.updatedAt).toLocaleString('mn-MN')}
                       </div>
                     </div>
-                    <button
-                      onClick={e => { e.stopPropagation(); handleDelete(q.id); }}
-                      title="Устгах"
-                      style={{
-                        background: 'none', border: 0, color: '#475569',
-                        cursor: 'pointer', padding: 4, borderRadius: 4,
+                    <Button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(q.id, q.name);
                       }}
-                      onMouseEnter={e => (e.currentTarget.style.color = '#f87171')}
-                      onMouseLeave={e => (e.currentTarget.style.color = '#475569')}
+                      size="icon-sm"
+                      variant="ghost"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity hover:text-destructive"
+                      aria-label="Устгах"
                     >
-                      <Trash2 size={14} />
-                    </button>
+                      <Trash2 size={13} />
+                    </Button>
                   </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-    </>
+                ))}
+              </div>
+            )}
+          </ScrollArea>
+        </SheetContent>
+      </Sheet>
+    </TooltipProvider>
   );
 }

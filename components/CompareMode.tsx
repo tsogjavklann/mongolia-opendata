@@ -3,6 +3,9 @@
 import { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { Loader2, AlertCircle, Play, GitCompare } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 
 const DataChart = dynamic(() => import('@/components/DataChart'), { ssr: false });
 const SQLEditor = dynamic(() => import('@/components/SQLEditor'), { ssr: false });
@@ -53,21 +56,29 @@ interface CompareInitial {
 
 export default function CompareMode({ initial }: { initial?: CompareInitial }) {
   const [left, setLeft] = useState<PaneState>({
-    sql: initial?.leftSql ?? PRESET_PAIRS[0].left, rows: null, loading: false, error: null, count: 0,
+    sql: initial?.leftSql ?? PRESET_PAIRS[0].left,
+    rows: null,
+    loading: false,
+    error: null,
+    count: 0,
     label: initial?.leftLabel ?? PRESET_PAIRS[0].leftLabel,
   });
   const [right, setRight] = useState<PaneState>({
-    sql: initial?.rightSql ?? PRESET_PAIRS[0].right, rows: null, loading: false, error: null, count: 0,
+    sql: initial?.rightSql ?? PRESET_PAIRS[0].right,
+    rows: null,
+    loading: false,
+    error: null,
+    count: 0,
     label: initial?.rightLabel ?? PRESET_PAIRS[0].rightLabel,
   });
 
-  // initial-аас ирвэл автоматаар ажиллуулна (AI-аас compare result буцаасан үед)
   const autoRanRef = useRef(false);
   useEffect(() => {
     if (initial?.autoRun && !autoRanRef.current) {
       autoRanRef.current = true;
-      // Хоёуланг зэрэг ажиллуулна
-      setTimeout(() => { runBoth(); }, 100);
+      setTimeout(() => {
+        runBoth();
+      }, 100);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initial?.autoRun]);
@@ -89,7 +100,12 @@ export default function CompareMode({ initial }: { initial?: CompareInitial }) {
       }
       setter({ ...pane, loading: false, error: null, rows: data.rows ?? [], count: data.count ?? 0 });
     } catch (e) {
-      setter({ ...pane, loading: false, error: e instanceof Error ? e.message : 'Сүлжээний алдаа', rows: null });
+      setter({
+        ...pane,
+        loading: false,
+        error: e instanceof Error ? e.message : 'Сүлжээний алдаа',
+        rows: null,
+      });
     }
   };
 
@@ -98,43 +114,73 @@ export default function CompareMode({ initial }: { initial?: CompareInitial }) {
   };
 
   const loadPreset = (preset: typeof PRESET_PAIRS[number]) => {
-    setLeft({ sql: preset.left, rows: null, loading: false, error: null, count: 0, label: preset.leftLabel });
-    setRight({ sql: preset.right, rows: null, loading: false, error: null, count: 0, label: preset.rightLabel });
+    setLeft({
+      sql: preset.left,
+      rows: null,
+      loading: false,
+      error: null,
+      count: 0,
+      label: preset.leftLabel,
+    });
+    setRight({
+      sql: preset.right,
+      rows: null,
+      loading: false,
+      error: null,
+      count: 0,
+      label: preset.rightLabel,
+    });
   };
 
   return (
-    <div>
-      {/* Preset switcher */}
-      <div className="card mb-3">
-        <div className="flex items-center gap-2 mb-2.5 flex-wrap">
-          <GitCompare size={14} className="text-accent" />
-          <span className="text-[12px] font-display font-bold text-ink-100">Харьцуулалт</span>
-          <span className="text-[10px] text-ink-600 font-mono ml-auto">ХОЁР QUERY-Г ЗЭРЭГ ХАРНА</span>
+    <div className="fade-up">
+      {/* Preset toolbar */}
+      <div className="rounded-card border border-border bg-card p-3.5 mb-3 flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-accent-dim text-accent">
+            <GitCompare size={14} />
+          </div>
+          <div>
+            <div className="text-[12px] font-display font-bold text-foreground leading-none">
+              Харьцуулах
+            </div>
+            <div className="text-[10px] text-muted-foreground font-mono mt-0.5">
+              ХОЁР QUERY-Г ЗЭРЭГ ХАРНА
+            </div>
+          </div>
         </div>
-        <div className="flex gap-1.5 flex-wrap">
+
+        <div className="flex gap-1.5 flex-wrap items-center">
+          <span className="label-upper text-[9.5px] mr-1">Бэлэн</span>
           {PRESET_PAIRS.map((p, i) => (
             <button
               key={i}
               onClick={() => loadPreset(p)}
-              className="btn-ghost text-accent2"
+              className="btn-ghost"
               title={p.desc}
             >
               {p.label}
             </button>
           ))}
-          <button
-            onClick={runBoth}
-            disabled={left.loading || right.loading}
-            className="btn-primary ml-auto flex items-center gap-1.5"
-          >
-            {(left.loading || right.loading) ? <Loader2 size={12} className="spin" /> : <Play size={12} />}
-            Хоёуланг ажиллуулах
-          </button>
         </div>
+
+        <Button
+          onClick={runBoth}
+          disabled={left.loading || right.loading}
+          size="sm"
+          className="ml-auto"
+        >
+          {left.loading || right.loading ? (
+            <Loader2 size={12} className="spin" />
+          ) : (
+            <Play size={12} />
+          )}
+          Хоёуланг ажиллуулах
+        </Button>
       </div>
 
       {/* Two panes */}
-      <div className="grid gap-3" style={{ gridTemplateColumns: '1fr 1fr' }}>
+      <div className="grid gap-3 grid-cols-1 lg:grid-cols-2">
         <Pane state={left} setState={setLeft} onRun={() => runOne('left')} side="left" />
         <Pane state={right} setState={setRight} onRun={() => runOne('right')} side="right" />
       </div>
@@ -150,22 +196,23 @@ interface PaneProps {
 }
 
 function Pane({ state, setState, onRun, side }: PaneProps) {
-  const accent = side === 'left' ? '#00c87a' : '#a78bfa';
   return (
-    <div className="card flex flex-col gap-2.5">
+    <div className="rounded-card border border-border bg-card p-4 flex flex-col gap-3">
       <div className="flex items-center gap-2">
         <div
-          className="w-1.5 h-5 rounded-full"
-          style={{ background: accent }}
+          className="w-1 h-5 rounded-full"
+          style={{ background: side === 'left' ? 'var(--c-accent)' : 'var(--c-accent2)' }}
         />
         <input
           type="text"
           value={state.label}
-          onChange={e => setState({ ...state, label: e.target.value })}
-          className="bg-transparent border-0 text-[13px] font-bold text-ink-100 outline-none flex-1"
+          onChange={(e) => setState({ ...state, label: e.target.value })}
+          className="bg-transparent border-0 text-[13px] font-display font-bold text-foreground outline-none flex-1 placeholder:text-muted-foreground"
           placeholder="Шошго..."
         />
-        <span className="text-[10px] text-ink-700 font-mono">{side === 'left' ? 'ЗҮҮН' : 'БАРУУН'}</span>
+        <Badge variant="outline" className="font-mono">
+          {side === 'left' ? 'ЗҮҮН' : 'БАРУУН'}
+        </Badge>
       </div>
 
       <SQLEditor
@@ -178,38 +225,37 @@ function Pane({ state, setState, onRun, side }: PaneProps) {
         rows={5}
       />
 
-      <button
-        onClick={onRun}
-        disabled={state.loading}
-        className="btn-primary"
-        style={{ background: accent, color: '#000' }}
-      >
+      <Button onClick={onRun} disabled={state.loading} size="sm" className="self-start">
         {state.loading ? <Loader2 size={12} className="spin" /> : <Play size={12} />}
         Ажиллуулах
-      </button>
+      </Button>
+
+      <Separator />
 
       {state.error && (
-        <div className="flex items-start gap-2 px-3 py-2 rounded bg-red-500/10 border border-red-500/20">
-          <AlertCircle size={12} className="text-red-400 flex-shrink-0 mt-0.5" />
-          <span className="text-[11px] text-red-300 font-mono">{state.error}</span>
+        <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-destructive/10 border border-destructive/20">
+          <AlertCircle size={12} className="text-destructive flex-shrink-0 mt-0.5" />
+          <span className="text-[11px] text-destructive font-mono">{state.error}</span>
         </div>
       )}
 
       {state.rows && state.rows.length > 0 && (
         <>
           <DataChart rows={state.rows as any} title={state.label} />
-          <div className="text-[10px] text-ink-700 font-mono text-right">
+          <div className="text-[10px] text-muted-foreground font-mono text-right">
             {state.count.toLocaleString()} мөр
           </div>
         </>
       )}
 
       {state.rows && state.rows.length === 0 && !state.loading && (
-        <div className="text-center py-6 text-ink-600 text-xs">Өгөгдөл олдсонгүй</div>
+        <div className="text-center py-6 text-muted-foreground text-xs">Өгөгдөл олдсонгүй</div>
       )}
 
       {!state.rows && !state.loading && !state.error && (
-        <div className="text-center py-6 text-ink-700 text-[11px]">Ажиллуулж график үүсгэнэ үү</div>
+        <div className="text-center py-6 text-muted-foreground/60 text-[11px]">
+          Ажиллуулж график үүсгэнэ үү
+        </div>
       )}
     </div>
   );

@@ -38,3 +38,11 @@ npm-debug.log*
 .claude/
 
 .vercel
+
+# Playwright + dev screenshots
+.playwright-mcp/
+*.png
+!public/**/*.png
+
+# tsbuildinfo (regenerated each build)
+tsconfig.tsbuildinfo

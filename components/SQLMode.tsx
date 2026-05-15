@@ -1,14 +1,19 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Play, RefreshCw, AlertCircle, X, BarChart2 } from 'lucide-react';
+import { Play, RefreshCw, AlertCircle, X, BarChart2, Sparkles, PanelRightClose, PanelRightOpen } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { smartInsert } from '@/lib/sqlParser';
 import { ENGLISH_ALIASES } from '@/lib/dimensionMap';
-import type { DimMeta, ParsedFilter, QueryResult, ColumnInfo } from '@/lib/types';
+import type { DimMeta, ParsedFilter, QueryResult } from '@/lib/types';
 import DimSidebar from '@/components/DimSidebar';
 import ResultsPanel from '@/components/ResultsPanel';
 import TableSearch from '@/components/TableSearch';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const SchemaSidebar = dynamic(() => import('@/components/SchemaSidebar'), { ssr: false });
 const SQLEditor = dynamic(() => import('@/components/SQLEditor'), { ssr: false });
@@ -45,29 +50,14 @@ const SQL_EXAMPLES_ADVANCED = [
     sql: `SELECT ОН AS Жил,\n       VALUE AS ДНБ,\n       LAG(VALUE) OVER (ORDER BY ОН) AS Өмнөх_жил,\n       ROUND((VALUE - LAG(VALUE) OVER (ORDER BY ОН)) * 100.0\n             / NULLIF(LAG(VALUE) OVER (ORDER BY ОН), 0), 1) AS Өсөлт_хувь\nFROM "Economy, environment/National Accounts/DT_NSO_0500_002V1.px"\nWHERE ОН BETWEEN '2005' AND '2025'\nORDER BY ОН;`,
   },
   {
-    label: 'Цалингийн ялгаа',
-    desc: 'Эрэгтэй vs Эмэгтэй',
-    sql: `SELECT a.Он,\n       a.VALUE AS Эрэгтэй_цалин,\n       b.VALUE AS Эмэгтэй_цалин,\n       ROUND((a.VALUE - b.VALUE) * 100.0\n             / NULLIF(a.VALUE, 0), 1) AS Ялгаа_хувь\nFROM "Labour, business/Wages/MONTHLY AVERAGE NOMINAL WAGES, by occupation and gender/DT_NSO_0400_025V1.px" a\nJOIN "Labour, business/Wages/MONTHLY AVERAGE NOMINAL WAGES, by occupation and gender/DT_NSO_0400_025V1.px" b\n  ON a.Он = b.Он\nWHERE a.Хүйс = 'Эрэгтэй' AND b.Хүйс = 'Эмэгтэй'\nORDER BY a.Он;`,
-  },
-  {
-    label: 'Экспорт vs Импорт',
-    desc: 'Гадаад худалдааны тэнцэл',
-    sql: `SELECT a.Он AS Жил,\n       a.VALUE AS Экспорт,\n       b.VALUE AS Импорт,\n       ROUND(a.VALUE - b.VALUE, 1) AS Тэнцэл,\n       CASE WHEN a.VALUE > b.VALUE THEN 'Ашигтай' ELSE 'Алдагдалтай' END AS Төлөв\nFROM "Economy, environment/Foreign Trade/DT_NSO_1400_001V1_year.px" a\nJOIN "Economy, environment/Foreign Trade/DT_NSO_1400_001V1_year.px" b ON a.Он = b.Он\nWHERE a."Гадаад худалдааны үндсэн үзүүлэлт" = 'Экспорт'\n  AND b."Гадаад худалдааны үндсэн үзүүлэлт" = 'Импорт'\nORDER BY a.Он;`,
-  },
-  {
     label: 'ДНБ салбарын бүтэц',
     desc: 'Хувийн жин тооцох',
     sql: `SELECT "Эдийн засгийн үйл ажиллагааны салбарын ангилал" AS Салбар,\n       VALUE AS ДНБ,\n       ROUND(VALUE * 100.0 / SUM(VALUE) OVER (), 2) AS Хувь\nFROM "Economy, environment/National Accounts/DT_NSO_0500_002V1.px"\nWHERE ОН = '2024'\n  AND "Эдийн засгийн үйл ажиллагааны салбарын ангилал" != 'Бүгд'\nORDER BY VALUE DESC;`,
   },
   {
-    label: 'Топ 10 жуулчин улс',
+    label: 'Топ 10 жуулчин',
     desc: '2024 онд хамгийн их',
     sql: `SELECT "Улсын нэр" AS Улс,\n       SUM(VALUE) AS Нийт_жуулчид,\n       RANK() OVER (ORDER BY SUM(VALUE) DESC) AS Байр\nFROM "Industry, service/Tourism/NUMBER OF INBOUND TOURISTS by country/DT_NSO_1800_003V202.px"\nWHERE Сар LIKE '2024%'\n  AND "Улсын нэр" != 'БҮГД'\nGROUP BY "Улсын нэр"\nORDER BY Нийт_жуулчид DESC\nLIMIT 10;`,
-  },
-  {
-    label: 'Хүн ам аймгаар + Хөрөнгө оруулалт',
-    desc: 'Нэг хүнд ногдох хөрөнгө оруулалт',
-    sql: `SELECT a.Бүс AS Аймаг,\n       a.VALUE AS Хүн_ам,\n       b.VALUE AS Хөрөнгө_оруулалт,\n       ROUND(b.VALUE / NULLIF(a.VALUE, 0), 2) AS Нэг_хүнд_хөрөнгө\nFROM "Regional development/Population and household/DT_NSO_0300_002V4.px" a\nJOIN "Regional development/National accounts/DT_NSO_0901_004V1.px" b ON a.Бүс = b.Бүс AND a.Он = b.Он\nWHERE a.Он = '2024'\nORDER BY Нэг_хүнд_хөрөнгө DESC\nLIMIT 25;`,
   },
 ];
 
@@ -76,7 +66,7 @@ const SQL_TEMPLATES = [
   { label: 'Хүйсээр', snippet: `Хүйс IN ('Эрэгтэй','Эмэгтэй')` },
   { label: 'Нийт', snippet: `Хүйс = 'Нийт дүн'` },
   { label: 'JOIN', snippet: `JOIN "table" b ON a.Он = b.Он` },
-  { label: 'LAG (өөрчлөлт)', snippet: `LAG(VALUE) OVER (ORDER BY Он)` },
+  { label: 'LAG', snippet: `LAG(VALUE) OVER (ORDER BY Он)` },
   { label: 'RANK', snippet: `RANK() OVER (ORDER BY VALUE DESC)` },
 ];
 
@@ -110,7 +100,6 @@ export default function SQLMode({
     fetch('/aliases.json').then(r => r.json()).then(setAllAliases).catch(() => {});
   }, []);
 
-  // Load dims for sidebar
   const currentPath = sql.match(/FROM\s+["'`]([^"'`]+)["'`]/i)?.[1];
   useEffect(() => {
     if (!currentPath) { setSqlDims([]); return; }
@@ -128,219 +117,288 @@ export default function SQLMode({
   const insertSnippet = (snippet: string) => setSql((s: string) => smartInsert(s, snippet));
 
   return (
-    <div className="layout-main" style={{ display: 'grid', gridTemplateColumns: sidebarOpen ? '1fr 272px' : '1fr', gap: 18, alignItems: 'start' }}>
+    <TooltipProvider delayDuration={150}>
+      <div
+        className="layout-main fade-up"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: sidebarOpen ? '1fr 280px' : '1fr',
+          gap: 18,
+          alignItems: 'start',
+        }}
+      >
+        {/* ── LEFT: editor + results ─────────────────── */}
+        <div className="flex flex-col gap-3.5 min-w-0">
+          {/* Editor card */}
+          <div className="rounded-card border border-border bg-card overflow-hidden shadow-elevated">
+            {/* Header bar — search + sidebar toggle */}
+            <div className="flex items-center gap-2 px-3.5 pt-3.5">
+              <div className="flex-1">
+                <TableSearch
+                  onSelect={t => {
+                    const path = t.path.endsWith('.px') ? t.path : t.path + '.px';
+                    setSql(`SELECT *\nFROM "${path}"\nLIMIT 500;`);
+                  }}
+                  compact
+                />
+              </div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => setSidebarOpen(s => !s)}
+                    aria-label="Toggle sidebar"
+                  >
+                    {sidebarOpen ? <PanelRightClose size={14} /> : <PanelRightOpen size={14} />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Sidebar нуух / нээх</TooltipContent>
+              </Tooltip>
+            </div>
 
-      {/* Left: editor + results */}
-      <div className="flex flex-col gap-3.5">
-        <div className="card">
-          {/* Table search */}
-          <TableSearch onSelect={t => {
-            const path = t.path.endsWith('.px') ? t.path : t.path + '.px';
-            setSql(`SELECT *\nFROM "${path}"\nLIMIT 500;`);
-          }} compact />
+            {/* Examples / templates */}
+            <div className="px-3.5 py-2.5 space-y-1.5 border-b border-border/40">
+              <div className="flex gap-1.5 flex-wrap items-center">
+                <span className="label-upper text-[9.5px] mr-1">Үндсэн</span>
+                {SQL_EXAMPLES_BASIC.map(ex => (
+                  <button key={ex.label} onClick={() => setSql(ex.sql)} className="btn-ghost">
+                    {ex.label}
+                  </button>
+                ))}
+                <span className="opacity-30">·</span>
+                <span className="label-upper text-[9.5px] mr-1">JOIN</span>
+                {SQL_EXAMPLES_JOIN.map(ex => (
+                  <button key={ex.label} onClick={() => setSql(ex.sql)} className="btn-ghost" title={ex.desc}>
+                    {ex.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-1.5 flex-wrap items-center">
+                <span className="label-upper text-[9.5px] mr-1">Дэвшилтэт</span>
+                {SQL_EXAMPLES_ADVANCED.map(ex => (
+                  <button key={ex.label} onClick={() => setSql(ex.sql)} className="btn-ghost" title={ex.desc}>
+                    {ex.label}
+                  </button>
+                ))}
+                <span className="opacity-30">·</span>
+                <span className="label-upper text-[9.5px] mr-1">Загвар</span>
+                {SQL_TEMPLATES.map(t => (
+                  <button key={t.label} onClick={() => insertSnippet(t.snippet)} className="btn-ghost">
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-          {/* Examples + templates */}
-          <div className="flex gap-1.5 flex-wrap my-2.5 items-center">
-            <span className="text-label text-ink-700 self-center font-semibold">Энгийн:</span>
-            {SQL_EXAMPLES_BASIC.map(ex => (
-              <button key={ex.label} onClick={() => setSql(ex.sql)} className="btn-ghost text-accent2">
-                {ex.label}
-              </button>
-            ))}
-            <span className="text-ink-800 self-center">|</span>
-            <span className="text-label text-ink-700 self-center font-semibold">JOIN:</span>
-            {SQL_EXAMPLES_JOIN.map(ex => (
-              <button key={ex.label} onClick={() => setSql(ex.sql)} className="btn-ghost text-accent" title={ex.desc}>
-                {ex.label}
-              </button>
-            ))}
+            {/* Editor */}
+            <div className="p-3.5">
+              <SQLEditor
+                value={sql}
+                onChange={setSql}
+                onRun={runSQL}
+                columns={result?.schema ?? sqlDims.map(d => ({ name: d.label, englishAlias: d.englishAlias, type: 'text' }))}
+                tables={allTables}
+                aliases={allAliases}
+                rows={9}
+              />
+            </div>
+
+            {/* Status bar */}
+            <div className="flex items-center gap-2.5 px-3.5 py-2.5 border-t border-border/40 bg-surface-darker/40 flex-wrap">
+              <Button onClick={() => runSQL()} disabled={loading} size="sm">
+                {loading ? <RefreshCw size={13} className="spin" /> : <Play size={13} />}
+                {loading ? 'Татаж байна' : 'Ажиллуулах'}
+              </Button>
+
+              {result && (
+                <>
+                  <Badge>{result.count.toLocaleString()} мөр</Badge>
+                  {result.timing && (
+                    <Badge variant="secondary">{result.timing.totalMs}ms</Badge>
+                  )}
+                </>
+              )}
+
+              {result?.parsed?.filters && result.parsed.filters.length > 0 && (
+                <div className="flex flex-wrap gap-1 items-center ml-1">
+                  <span className="label-upper text-[9px]">Шүүлт</span>
+                  {result.parsed.filters.slice(0, 4).map((f: ParsedFilter, i: number) => (
+                    <Badge variant="outline" key={i} className="font-mono">
+                      {(ENGLISH_ALIASES as Record<string, string>)[f.code] ?? f.code}:{' '}
+                      {f.displayValues?.slice(0, 2).join(', ')}
+                      {(f.displayValues?.length ?? 0) > 2 ? ` +${f.displayValues.length - 2}` : ''}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+
+              <span className="ml-auto text-[10px] text-muted-foreground font-mono tracking-wider uppercase">
+                <kbd className="px-1.5 py-0.5 rounded bg-surface-overlay border border-border">Ctrl</kbd>{' '}
+                +{' '}
+                <kbd className="px-1.5 py-0.5 rounded bg-surface-overlay border border-border">↵</kbd>
+              </span>
+            </div>
           </div>
-          <div className="flex gap-1.5 flex-wrap mb-2 items-center">
-            <span className="text-label text-ink-700 self-center font-semibold">Дэвшилтэт:</span>
-            {SQL_EXAMPLES_ADVANCED.map(ex => (
-              <button key={ex.label} onClick={() => setSql(ex.sql)} className="btn-ghost text-blue-400" title={ex.desc}>
-                {ex.label}
-              </button>
-            ))}
-            <span className="text-ink-800 self-center">|</span>
-            <span className="text-label text-ink-700 self-center font-semibold">Загвар:</span>
-            {SQL_TEMPLATES.map(t => (
-              <button key={t.label} onClick={() => insertSnippet(t.snippet)} className="btn-ghost">
-                {t.label}
-              </button>
-            ))}
-          </div>
 
-          {/* SQL Editor */}
-          <SQLEditor
-            value={sql}
-            onChange={setSql}
-            onRun={runSQL}
-            columns={result?.schema ?? sqlDims.map(d => ({ name: d.label, englishAlias: d.englishAlias, type: 'text' }))}
-            tables={allTables}
-            aliases={allAliases}
-            rows={9}
-          />
-
-          {/* Actions row */}
-          <div className="flex items-center gap-2.5 mt-3 flex-wrap">
-            <button onClick={() => runSQL()} disabled={loading} className="btn-primary">
-              {loading ? <RefreshCw size={14} className="spin" /> : <Play size={14} />}
-              {loading ? 'Татаж байна...' : 'Ажиллуулах'}
-            </button>
-            {result && (
-              <>
-                <span className="badge badge-accent">
-                  {result.count.toLocaleString()} мөр
-                </span>
-                {result.timing && (
-                  <span className="badge" style={{ borderColor: 'rgba(91,156,246,0.25)', background: 'rgba(91,156,246,0.06)', color: '#5b9cf6' }}>
-                    {result.timing.totalMs}ms
-                  </span>
+          {/* Error */}
+          {error && (
+            <div className="p-3 bg-destructive/5 border border-destructive/20 rounded-lg flex gap-2.5 items-start fade-up">
+              <AlertCircle size={14} className="text-destructive flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <div className="text-xs text-destructive font-mono">{error.msg}</div>
+                {error.suggestion && (
+                  <div className="text-[11.5px] text-muted-foreground mt-1.5 px-2 py-1 bg-surface-darker rounded">
+                    {error.suggestion}
+                  </div>
                 )}
-              </>
-            )}
-            <span className="ml-auto text-[10px] text-ink-600 font-mono tracking-wider uppercase">Ctrl+Enter</span>
-          </div>
+              </div>
+              <button onClick={() => setError(null)} className="icon-btn">
+                <X size={13} />
+              </button>
+            </div>
+          )}
 
-          {/* Filter chips */}
-          {result?.parsed?.filters && result.parsed.filters.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mt-2 items-center">
-              <span className="text-label text-ink-700 font-semibold">Шүүлт:</span>
-              {result.parsed.filters.map((f: ParsedFilter, i: number) => (
-                <span key={i} className="badge font-mono border-accent2/30 bg-accent2-dim text-accent2">
-                  {(ENGLISH_ALIASES as Record<string, string>)[f.code] ?? f.code}: {f.displayValues?.slice(0, 2).join(', ')}{(f.displayValues?.length ?? 0) > 2 ? ` +${f.displayValues.length - 2}` : ''}
-                </span>
-              ))}
+          <ResultsPanel result={result} loading={loading} tab={tab} setTab={setTab} />
+
+          {result?.duckdbError && (
+            <div className="p-3 bg-accent3-dim border border-accent3/20 rounded-lg flex gap-2.5 items-start">
+              <AlertCircle size={14} className="text-accent3 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <div className="text-[12px] text-accent3 font-mono">
+                  DuckDB SQL алдаа — API өгөгдлийг харуулж байна
+                </div>
+                <div className="text-[11px] text-muted-foreground mt-1">{result.duckdbError}</div>
+                {result.duckdbSuggestion && (
+                  <div className="text-[11px] text-accent2 mt-0.5">{result.duckdbSuggestion}</div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {!result && !loading && !error && (
+            <div className="text-center py-16 text-muted-foreground/60 fade-up">
+              <BarChart2 size={40} className="mx-auto mb-3 opacity-20" />
+              <div className="text-sm font-display font-semibold text-foreground/70">
+                SQL бичээд{' '}
+                <kbd className="px-1.5 py-0.5 rounded bg-surface-raised border border-border text-foreground">
+                  Ctrl+Enter
+                </kbd>{' '}
+                дарна уу
+              </div>
+              <div className="text-xs mt-2">
+                Year, Gender, Age, Region гэх мэт англи нэр ашиглаж болно
+              </div>
             </div>
           )}
         </div>
 
-        {/* Error */}
-        {error && (
-          <div className="p-3 bg-red-500/5 border border-red-500/15 rounded-lg flex gap-2.5 items-start animate-fade-up">
-            <AlertCircle size={14} className="text-red-400 flex-shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <div className="text-xs text-red-300 font-mono">{error.msg}</div>
-              {error.suggestion && (
-                <div className="text-[11.5px] text-ink-400 mt-1.5 px-2 py-1 bg-black/20 rounded">
-                  {error.suggestion}
+        {/* ── RIGHT: sidebar ─────────────────────────── */}
+        {sidebarOpen && (
+          <aside className="sticky top-[72px] flex flex-col gap-2.5 hide-mobile">
+            {/* DuckDB toggle card */}
+            <div className="sidebar-panel">
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-2">
+                  <div
+                    className="flex h-6 w-6 items-center justify-center rounded-md text-[12px] transition-colors"
+                    style={{ background: useDuckDB ? 'var(--c-accent-dim)' : 'var(--c-surface-raised)' }}
+                  >
+                    <Sparkles size={11} className={useDuckDB ? 'text-accent' : 'text-muted-foreground'} />
+                  </div>
+                  <span className="text-[11.5px] font-display font-bold text-foreground">DuckDB</span>
                 </div>
-              )}
+                <button
+                  onClick={() => setUseDuckDB((p: boolean) => !p)}
+                  className="relative w-10 h-[22px] rounded-full transition-all duration-300 flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+                  style={{
+                    background: useDuckDB
+                      ? 'linear-gradient(135deg, var(--c-accent), var(--c-accent-hover))'
+                      : 'var(--c-input)',
+                    boxShadow: useDuckDB ? '0 2px 8px var(--c-accent-glow)' : 'none',
+                  }}
+                  aria-pressed={useDuckDB}
+                  aria-label="DuckDB toggle"
+                >
+                  <div
+                    className="absolute top-[3px] w-4 h-4 rounded-full bg-white transition-all duration-300"
+                    style={{ left: useDuckDB ? 20 : 3, boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }}
+                  />
+                </button>
+              </div>
+              <div className="text-[10px] text-muted-foreground leading-relaxed font-mono">
+                {useDuckDB ? 'JOIN · GROUP BY · WINDOW · RANK' : 'API filter — хялбар'}
+              </div>
             </div>
-            <button onClick={() => setError(null)} className="icon-btn"><X size={13} /></button>
-          </div>
-        )}
 
-        <ResultsPanel result={result} loading={loading} tab={tab} setTab={setTab} />
+            {/* Tabbed sidebar */}
+            <div className="rounded-card border border-border bg-card overflow-hidden">
+              <Tabs value={rightTab} onValueChange={(v) => setRightTab(v as typeof rightTab)} className="w-full">
+                <TabsList className="w-full h-9 grid grid-cols-3 rounded-none border-x-0 border-t-0 border-b border-border bg-surface-darker/40">
+                  <TabsTrigger value="alias" className="rounded-none">Alias</TabsTrigger>
+                  <TabsTrigger value="schema" className="rounded-none">Schema</TabsTrigger>
+                  <TabsTrigger value="dims" className="rounded-none">Filter</TabsTrigger>
+                </TabsList>
 
-        {/* DuckDB fallback warning */}
-        {result?.duckdbError && (
-          <div className="p-2.5 px-3.5 bg-yellow-500/5 border border-yellow-500/15 rounded-lg flex gap-2">
-            <span className="text-[13px]">&#9888;</span>
-            <div>
-              <div className="text-[11.5px] text-yellow-400 font-mono">DuckDB SQL алдаа — API өгөгдлийг харуулж байна</div>
-              <div className="text-[11px] text-ink-400 mt-1">{result.duckdbError}</div>
-              {result.duckdbSuggestion && <div className="text-[11px] text-accent2 mt-0.5">{result.duckdbSuggestion}</div>}
+                <ScrollArea className="h-[calc(100vh-340px)] mt-0">
+                  <div className="p-3.5">
+                    <TabsContent value="alias" className="mt-0">
+                      <AliasTable
+                        onInsert={(alias: string) => {
+                          setSql((s: string) => {
+                            const trimmed = s.trimEnd();
+                            const needsSpace = trimmed.length > 0 && !trimmed.endsWith('"');
+                            return trimmed + (needsSpace ? ' ' : '') + `"${alias}"`;
+                          });
+                        }}
+                      />
+                    </TabsContent>
+                    <TabsContent value="schema" className="mt-0">
+                      <SchemaSidebar
+                        tableName={result?.explain?.table}
+                        columns={result?.schema ?? []}
+                        loading={loading}
+                        engine={result?.engine}
+                        timing={result?.timing}
+                        onInsertColumn={(col: string) => setSql((s: string) => s + `\n-- Column: ${col}`)}
+                        onInsertSnippet={(snippet: string) => {
+                          if (snippet.trim().toUpperCase().startsWith('SELECT')) {
+                            setSql(snippet);
+                          } else {
+                            setSql((s: string) => smartInsert(s, snippet));
+                          }
+                        }}
+                      />
+                    </TabsContent>
+                    <TabsContent value="dims" className="mt-0">
+                      {sqlDims.length > 0 ? (
+                        <DimSidebar dims={sqlDims} loading={sqlDimsLoading} onInsert={insertSnippet} />
+                      ) : (
+                        <div className="text-xs text-muted-foreground text-center py-5">
+                          SQL ажиллуулахад dimension-ууд гарна
+                        </div>
+                      )}
+                    </TabsContent>
+                  </div>
+                </ScrollArea>
+              </Tabs>
             </div>
-          </div>
-        )}
 
-        {/* Empty state */}
-        {!result && !loading && !error && (
-          <div className="text-center py-12 text-ink-700">
-            <BarChart2 size={36} className="mx-auto mb-3 opacity-[0.13]" />
-            <div className="text-sm font-semibold text-ink-600">SQL бичээд Ctrl+Enter дарна уу</div>
-            <div className="text-xs mt-1.5 text-ink-700">Year, Gender, Age, Region гэх мэт англи нэр ашиглаж болно</div>
-          </div>
+            {/* Syntax reference */}
+            <div className="card p-3">
+              <div className="label-upper mb-2">Синтакс</div>
+              <pre className="font-mono text-[10.5px] text-muted-foreground leading-relaxed m-0 whitespace-pre-wrap">
+{`SELECT a.Он, a.VALUE, b.VALUE
+FROM "table1" a
+JOIN "table2" b ON a.Он = b.Он
+WHERE a.Он BETWEEN 2018 AND 2024
+  AND Gender IN ('1','2')
+ORDER BY a.Он;`}
+              </pre>
+            </div>
+          </aside>
         )}
       </div>
-
-      {/* Right sidebar */}
-      {sidebarOpen && (
-        <div className="sticky top-[72px] flex flex-col gap-2.5 hide-mobile">
-          {/* DuckDB toggle */}
-          <div className="sidebar-panel">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-lg flex items-center justify-center text-[12px]"
-                  style={{ background: useDuckDB ? 'rgba(0,214,143,0.1)' : 'rgba(26,45,74,0.3)' }}>
-                  &#129414;
-                </div>
-                <span className="text-[11.5px] font-display font-bold text-ink-200">DuckDB</span>
-              </div>
-              <button onClick={() => setUseDuckDB((p: boolean) => !p)}
-                className="w-10 h-[22px] rounded-full border-none cursor-pointer relative transition-all duration-300 flex-shrink-0"
-                style={{
-                  background: useDuckDB ? 'linear-gradient(135deg, #00d68f, #00b87a)' : 'rgba(26,45,74,0.5)',
-                  boxShadow: useDuckDB ? '0 2px 8px rgba(0,214,143,0.3)' : 'none',
-                }}>
-                <div className="absolute top-[3px] w-4 h-4 rounded-full bg-white transition-all duration-300"
-                  style={{ left: useDuckDB ? 20 : 3, boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }} />
-              </button>
-            </div>
-            <div className="text-[10px] text-ink-600 leading-relaxed font-mono">
-              {useDuckDB ? 'JOIN, GROUP BY, WINDOW, RANK()' : 'API filter — хялбар'}
-            </div>
-          </div>
-
-          {/* Tabbed sidebar */}
-          <div className="bg-surface border border-border rounded-card overflow-hidden">
-            <div className="flex border-b border-border bg-surface-dark">
-              {([['alias', 'Alias'], ['schema', 'Schema'], ['dims', 'Filter']] as const).map(([t, label]) => (
-                <button key={t} onClick={() => setRightTab(t)}
-                  className={`flex-1 py-2 px-1 border-none cursor-pointer text-[11px] font-bold transition-all duration-150 ${
-                    rightTab === t
-                      ? 'bg-surface text-ink-200 border-b-2 border-accent'
-                      : 'bg-transparent text-ink-600 border-b-2 border-transparent'
-                  }`}>
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            <div className="p-3.5" style={{ maxHeight: 'calc(100vh - 340px)', overflowY: 'auto' }}>
-              {rightTab === 'alias' && (
-                <AliasTable onInsert={(alias: string) => {
-                  setSql((s: string) => {
-                    const trimmed = s.trimEnd();
-                    const needsSpace = trimmed.length > 0 && !trimmed.endsWith('"');
-                    return trimmed + (needsSpace ? ' ' : '') + `"${alias}"`;
-                  });
-                }} />
-              )}
-              {rightTab === 'schema' && (
-                <SchemaSidebar
-                  tableName={result?.explain?.table}
-                  columns={result?.schema ?? []}
-                  loading={loading}
-                  engine={result?.engine}
-                  timing={result?.timing}
-                  onInsertColumn={(col: string) => setSql((s: string) => s + `\n-- Column: ${col}`)}
-                  onInsertSnippet={(snippet: string) => {
-                    if (snippet.trim().toUpperCase().startsWith('SELECT')) {
-                      setSql(snippet);
-                    } else {
-                      setSql((s: string) => smartInsert(s, snippet));
-                    }
-                  }}
-                />
-              )}
-              {rightTab === 'dims' && (
-                sqlDims.length > 0
-                  ? <DimSidebar dims={sqlDims} loading={sqlDimsLoading} onInsert={insertSnippet} />
-                  : <div className="text-xs text-ink-700 text-center py-5">SQL ажиллуулахад dimension-ууд гарна</div>
-              )}
-            </div>
-          </div>
-
-          {/* Syntax reference */}
-          <div className="card p-3">
-            <div className="label-upper mb-2">Синтакс</div>
-            <pre className="font-mono text-[11px] text-ink-600 leading-relaxed m-0 whitespace-pre-wrap">{`SELECT a.Он, a.VALUE, b.VALUE\nFROM "table1" a\nJOIN "table2" b ON a.Он = b.Он\nWHERE a.Он BETWEEN 2018 AND 2024\n  AND Gender IN ('1','2')\nORDER BY a.Он;`}</pre>
-          </div>
-        </div>
-      )}
-    </div>
+    </TooltipProvider>
   );
 }
